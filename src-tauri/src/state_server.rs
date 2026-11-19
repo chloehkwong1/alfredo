@@ -25,6 +25,9 @@ struct ChannelRegistry {
     channels: HashMap<String, SessionEntry>,
 }
 
+/// Largest request body `handle_state_update` reads; a longer body is dropped.
+pub(crate) const HOOK_BODY_LIMIT_BYTES: usize = 64 * 1024;
+
 /// Shared state for the HTTP server.
 /// Maps session IDs to their PtyEvent channels.
 #[derive(Clone)]
@@ -277,7 +280,7 @@ async fn handle_state_update(
     // Read the body before taking the registry lock (a std Mutex must not be
     // held across an .await). Oversized or broken bodies are `None`: the
     // status update is still delivered.
-    let bytes = axum::body::to_bytes(body, 64 * 1024).await.ok();
+    let bytes = axum::body::to_bytes(body, HOOK_BODY_LIMIT_BYTES).await.ok();
     let question = if state == AgentState::WaitingForInput {
         bytes.as_deref().and_then(parse_hook_question)
     } else {

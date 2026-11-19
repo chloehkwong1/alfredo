@@ -1088,6 +1088,11 @@ impl PtyManager {
     }
 }
 
+/// The hook forwards at most this many bytes of its input to the state server.
+const HOOK_INPUT_CAP_BYTES: usize = 65000;
+// A forwarded body over the server's limit is dropped whole, so the cap must stay under it.
+const _: () = assert!(HOOK_INPUT_CAP_BYTES < crate::state_server::HOOK_BODY_LIMIT_BYTES);
+
 /// Marker substring embedded in Alfredo hook URLs so we can identify and
 /// replace our own hooks without disturbing user-defined ones.
 const ALFREDO_HOOK_MARKER: &str = "/agent-state/";
@@ -1395,6 +1400,10 @@ fn write_hooks_config(
     // we're a legitimate main-session hook — no nested claude was crossed, so
     // we can short-circuit without walking all the way to init. This cuts the
     // common-case hook overhead from ~10 ps calls to ~4-6.
+    // Forwards the hook's stdin ($INPUT), cut to HOOK_INPUT_CAP_BYTES, as the body.
+    let forward = format!(
+        r#"printf '%s' "$INPUT" | head -c {HOOK_INPUT_CAP_BYTES} | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @-"#
+    );
     let nested_fn = r#"alfredo_nested(){ _pp=$(printf 'c%s' 'laude -p'); _pn=$(printf 'c%s' 'laude --print'); _own=$(cat "/tmp/alfredo-claude-$ALFREDO_SESSION_ID.pid" 2>/dev/null); _p=$$; for _ in 1 2 3 4 5 6 7 8 9 10; do _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d ' '); case "$_p" in ''|0|1) return 1;; esac; if [ -n "$_own" ] && [ "$_p" = "$_own" ]; then return 1; fi; _c=$(ps -ww -o command= -p "$_p" 2>/dev/null); case "$_c" in *"$_pp"*|*"$_pn"*) return 0;; esac; done; return 1; }"#;
     let cmd = |state: &str| -> String {
         format!(
@@ -1410,7 +1419,7 @@ fn write_hooks_config(
     // the body (the state server reads where the work ran from it).
     let cmd_phase_with_input = |state: &str, phase: &str| -> String {
         format!(
-            r#"INPUT=$(cat); echo "$(date +%H:%M:%S) FIRE {state}({phase}) session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then printf '%s' "$INPUT" | head -c 65000 | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); echo "$(date +%H:%M:%S) FIRE {state}({phase}) session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then {forward} "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     let cmd_notify = |state: &str, reason: &str| -> String {
@@ -1443,7 +1452,7 @@ fn write_hooks_config(
     // PostToolUse still posts toolEnd, keeping workDepth balanced.
     let cmd_pretooluse = || -> String {
         format!(
-            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then U="$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q"; printf '%s' "$INPUT" | head -c 65000 | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$U" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then U="$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q"; {forward} "$U" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     // PostToolUse fires for every tool → busy?phase=toolEnd, EXCEPT the two
