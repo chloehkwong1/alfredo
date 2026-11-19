@@ -1,0 +1,21 @@
+src/services/sessionManager.ts
+  s_aeb2bb1fcfc01a::t_99a8b4e81fca70 223-224,587-595,600,602,606-607,618-623
+src/services/sessionManager.test.ts
+  s_aeb2bb1fcfc01a::t_980f5a037ca7a7 411-485
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a0931680da60d8d4761d64ef746b885e8757b2a",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
