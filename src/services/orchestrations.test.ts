@@ -326,7 +326,7 @@ describe("mergeOrchestrations", () => {
 describe("yourTurnRows", () => {
   it("lists the head of a link orchestration under its own name, after notes and rules", () => {
     const head = wt({ id: "r::orch", path: "/wt/orch", branch: "jack/billing-orchestrator", repoPath: "r", agentStatus: "waitingForInput" });
-    const linked = wt({ id: "r::api", path: "/wt/api", branch: "jack/billing-api", repoPath: "r", agentStatus: "busy", workedFrom: { worktreeId: "r::orch", running: true } });
+    const linked = wt({ id: "r::api", path: "/wt/api", branch: "jack/billing-api", repoPath: "r", agentStatus: "notRunning", workedFrom: { worktreeId: "r::orch", running: true } });
     const fromLinks = orchestrationsFromLinks("r", [head, linked], { "/wt/orch": "Billing" });
 
     const rows = yourTurnRows(fromLinks, [head, linked], new Set(["r::orch"]), new Set(), {});
