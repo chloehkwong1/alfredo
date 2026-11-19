@@ -43,6 +43,18 @@ pub struct HookQuestion {
     pub header: Option<String>,
 }
 
+/// Where a hook's tool call ran, read from the hook input. Memory only.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HookActivity {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub write_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+}
+
 /// Tagged enum sent over a Channel from the PTY reader thread.
 /// Frontend discriminates on the `event` field.
 ///
@@ -68,6 +80,9 @@ pub enum PtyEvent {
         /// In memory only: never log it.
         #[serde(skip_serializing_if = "Option::is_none")]
         question: Option<HookQuestion>,
+        /// Where the hook's tool call ran. In memory only: never log it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        activity: Option<HookActivity>,
     },
     /// Periodic heartbeat so the frontend can detect a dead PTY channel.
     Heartbeat,
@@ -141,8 +156,10 @@ mod pty_event_wire_tests {
             notify: NotifyReason::Finished,
             phase: HookPhase::TurnEnd,
             question: None,
+            activity: None,
         });
         assert!(hook["data"].get("question").is_none());
+        assert!(hook["data"].get("activity").is_none());
         assert_eq!(hook["event"], "hookAgentState");
         assert_eq!(hook["data"]["state"], "idle");
         assert_eq!(hook["data"]["notify"], "finished");
@@ -153,9 +170,19 @@ mod pty_event_wire_tests {
             notify: NotifyReason::Input,
             phase: HookPhase::ToolStart,
             question: Some(HookQuestion { text: "Which copy?".into(), header: Some("Error copy".into()) }),
+            activity: None,
         });
         assert_eq!(asked["data"]["question"]["text"], "Which copy?");
         assert_eq!(asked["data"]["question"]["header"], "Error copy");
+
+        let ran = json(PtyEvent::HookAgentState {
+            state: AgentState::Busy,
+            notify: NotifyReason::None,
+            phase: HookPhase::ToolStart,
+            question: None,
+            activity: Some(HookActivity { cwd: Some("/wt/b".into()), write_path: None, agent_id: Some("a1".into()) }),
+        });
+        assert_eq!(ran["data"]["activity"], serde_json::json!({ "cwd": "/wt/b", "agentId": "a1" }));
     }
 }
 

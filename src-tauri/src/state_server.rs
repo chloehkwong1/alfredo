@@ -8,7 +8,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, HookPhase, HookQuestion, NotifyReason, PtyEvent};
+use crate::types::{AgentState, HookActivity, HookPhase, HookQuestion, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
 /// Per-session registration details.
@@ -203,6 +203,44 @@ fn parse_hook_question(body: &[u8]) -> Option<HookQuestion> {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct HookBody {
+    cwd: Option<String>,
+    agent_id: Option<String>,
+    tool_name: Option<String>,
+    tool_input: Option<HookToolInput>,
+}
+
+#[derive(serde::Deserialize)]
+struct HookToolInput {
+    file_path: Option<String>,
+    notebook_path: Option<String>,
+}
+
+/// Reads where a hook's tool call ran: the session `cwd`, the sub-agent id,
+/// and the file a write tool targets. Typed structs let serde skip the rest of
+/// a body that can be 64 KB. Empty strings count as absent; `None` when all
+/// three are absent or the body is empty or broken.
+fn parse_hook_activity(body: &[u8]) -> Option<HookActivity> {
+    let parsed: HookBody = serde_json::from_slice(body).ok()?;
+    let non_empty = |s: Option<String>| s.filter(|s| !s.is_empty());
+    let is_write = matches!(
+        parsed.tool_name.as_deref(),
+        Some("Edit" | "Write" | "MultiEdit" | "NotebookEdit")
+    );
+    let write_path = if is_write {
+        parsed.tool_input.and_then(|i| non_empty(i.file_path).or_else(|| non_empty(i.notebook_path)))
+    } else {
+        None
+    };
+    let activity = HookActivity {
+        cwd: non_empty(parsed.cwd),
+        write_path,
+        agent_id: non_empty(parsed.agent_id),
+    };
+    (activity.cwd.is_some() || activity.write_path.is_some() || activity.agent_id.is_some()).then_some(activity)
+}
+
 /// POST /agent-state/{session_id}/{worktree_id...}/{state}
 ///
 /// Routes hook events to the specific session that originated them, preventing
@@ -239,14 +277,13 @@ async fn handle_state_update(
     // Read the body before taking the registry lock (a std Mutex must not be
     // held across an .await). Oversized or broken bodies are `None`: the
     // status update is still delivered.
+    let bytes = axum::body::to_bytes(body, 64 * 1024).await.ok();
     let question = if state == AgentState::WaitingForInput {
-        axum::body::to_bytes(body, 64 * 1024)
-            .await
-            .ok()
-            .and_then(|b| parse_hook_question(&b))
+        bytes.as_deref().and_then(parse_hook_question)
     } else {
         None
     };
+    let activity = bytes.as_deref().and_then(parse_hook_activity);
 
     let Ok(mut reg) = router_state.registry.lock() else {
         tracing::info!("[state-server] registry lock poisoned in handle_state_update");
@@ -264,7 +301,7 @@ async fn handle_state_update(
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
-        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase, question });
+        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase, question, activity });
         let registered = reg.channels.len();
         match send_result {
             Ok(()) => tracing::info!("[state-server] → {desc} (SEND OK, registered={registered})"),
@@ -410,17 +447,23 @@ mod tests {
     }
 
     async fn post_with_body(state: &str, body: Vec<u8>) -> Option<HookQuestion> {
+        let data = post_and_read_data(state, "notify=input&phase=toolStart", body).await;
+        data.get("question").map(|q| HookQuestion {
+            text: q["text"].as_str().unwrap().to_string(),
+            header: q["header"].as_str().map(str::to_string),
+        })
+    }
+
+    /// Posts a hook and returns the whole `data` object of the single event
+    /// the session's channel received.
+    async fn post_and_read_data(state: &str, query: &str, body: Vec<u8>) -> serde_json::Value {
         let handle = StateServerHandle::new_for_test();
-        let seen: Arc<Mutex<Vec<Option<HookQuestion>>>> = Arc::new(Mutex::new(Vec::new()));
+        let seen: Arc<Mutex<Vec<serde_json::Value>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&seen);
         let channel = Channel::new(move |resp| {
             if let tauri::ipc::InvokeResponseBody::Json(json) = resp {
                 let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-                let q = v["data"].get("question").map(|q| HookQuestion {
-                    text: q["text"].as_str().unwrap().to_string(),
-                    header: q["header"].as_str().map(str::to_string),
-                });
-                sink.lock().unwrap().push(q);
+                sink.lock().unwrap().push(v["data"].clone());
             }
             Ok(())
         });
@@ -429,7 +472,7 @@ mod tests {
             registry: Arc::clone(&handle.registry),
             sleep_inhibitor: Arc::clone(&handle.sleep_inhibitor),
         };
-        let uri: Uri = format!("/agent-state/s1/wt1/{state}?notify=input&phase=toolStart").parse().unwrap();
+        let uri: Uri = format!("/agent-state/s1/wt1/{state}?{query}").parse().unwrap();
         let status = handle_state_update(State(router_state), uri, axum::body::Body::from(body)).await;
         assert_eq!(status, StatusCode::OK);
         let events = seen.lock().unwrap();
@@ -459,5 +502,55 @@ mod tests {
     #[tokio::test]
     async fn handler_with_oversized_body_still_delivers_status() {
         assert_eq!(post_waiting_with_body(vec![b'x'; 100 * 1024]).await, None);
+    }
+
+    #[test]
+    fn parse_hook_activity_reads_cwd_agent_and_write_path() {
+        let body = br#"{"session_id":"s","cwd":"/wt/b","agent_id":"a1","agent_type":"general-purpose","tool_name":"Edit","tool_input":{"file_path":"/wt/b/x.rs","old_string":"a"}}"#;
+        assert_eq!(
+            parse_hook_activity(body),
+            Some(HookActivity { cwd: Some("/wt/b".into()), write_path: Some("/wt/b/x.rs".into()), agent_id: Some("a1".into()) })
+        );
+    }
+
+    #[test]
+    fn parse_hook_activity_ignores_read_paths() {
+        let body = br#"{"cwd":"/wt/a","tool_name":"Read","tool_input":{"file_path":"/wt/b/x.rs"}}"#;
+        assert_eq!(parse_hook_activity(body), Some(HookActivity { cwd: Some("/wt/a".into()), write_path: None, agent_id: None }));
+    }
+
+    #[test]
+    fn parse_hook_activity_reads_write_and_notebook_targets() {
+        let write = br#"{"cwd":"/wt/a","tool_name":"Write","tool_input":{"file_path":"/wt/b/n.txt","content":"x"}}"#;
+        assert_eq!(parse_hook_activity(write).unwrap().write_path.as_deref(), Some("/wt/b/n.txt"));
+        let nb = br#"{"cwd":"/wt/a","tool_name":"NotebookEdit","tool_input":{"notebook_path":"/wt/b/n.ipynb"}}"#;
+        assert_eq!(parse_hook_activity(nb).unwrap().write_path.as_deref(), Some("/wt/b/n.ipynb"));
+    }
+
+    #[test]
+    fn parse_hook_activity_rejects_empty_broken_and_placeless_bodies() {
+        assert_eq!(parse_hook_activity(b""), None);
+        assert_eq!(parse_hook_activity(br#"{"cwd":"/wt/a","tool_name":"Wri"#), None); // cut by the 65000-byte cap
+        assert_eq!(parse_hook_activity(br#"{"hook_event_name":"Stop"}"#), None);
+        assert_eq!(parse_hook_activity(br#"{"cwd":""}"#), None);
+    }
+
+    #[tokio::test]
+    async fn handler_delivers_activity_for_busy_state() {
+        let body = br#"{"cwd":"/wt/b","agent_id":"a1","tool_name":"Bash","tool_input":{"command":"ls"}}"#;
+        let data = post_and_read_data("busy", "phase=toolStart", body.to_vec()).await;
+        assert_eq!(data["activity"]["cwd"], "/wt/b");
+        assert_eq!(data["activity"]["agentId"], "a1");
+        assert!(data["activity"].get("writePath").is_none());
+        assert!(data.get("question").is_none());
+    }
+
+    #[tokio::test]
+    async fn handler_with_broken_body_delivers_status_without_activity() {
+        for body in [vec![b'x'; 100 * 1024], br#"{"cwd":"/wt/a","tool_na"#.to_vec(), Vec::new()] {
+            let data = post_and_read_data("busy", "phase=toolStart", body).await;
+            assert_eq!(data["state"], "busy");
+            assert!(data.get("activity").is_none());
+        }
     }
 }
