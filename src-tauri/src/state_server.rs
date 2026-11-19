@@ -526,6 +526,8 @@ mod tests {
     fn parse_hook_activity_reads_write_and_notebook_targets() {
         let write = br#"{"cwd":"/wt/a","tool_name":"Write","tool_input":{"file_path":"/wt/b/n.txt","content":"x"}}"#;
         assert_eq!(parse_hook_activity(write).unwrap().write_path.as_deref(), Some("/wt/b/n.txt"));
+        let multi = br#"{"cwd":"/wt/a","tool_name":"MultiEdit","tool_input":{"file_path":"/wt/b/m.rs","edits":[{"old_string":"a","new_string":"b"}]}}"#;
+        assert_eq!(parse_hook_activity(multi).unwrap().write_path.as_deref(), Some("/wt/b/m.rs"));
         let nb = br#"{"cwd":"/wt/a","tool_name":"NotebookEdit","tool_input":{"notebook_path":"/wt/b/n.ipynb"}}"#;
         assert_eq!(parse_hook_activity(nb).unwrap().write_path.as_deref(), Some("/wt/b/n.ipynb"));
     }
@@ -533,7 +535,7 @@ mod tests {
     #[test]
     fn parse_hook_activity_rejects_empty_broken_and_placeless_bodies() {
         assert_eq!(parse_hook_activity(b""), None);
-        assert_eq!(parse_hook_activity(br#"{"cwd":"/wt/a","tool_name":"Wri"#), None); // cut by the 65000-byte cap
+        assert_eq!(parse_hook_activity(br#"{"cwd":"/wt/a","tool_name":"Wri"#), None); // cut by the hook's HOOK_INPUT_CAP_BYTES cap
         assert_eq!(parse_hook_activity(br#"{"hook_event_name":"Stop"}"#), None);
         assert_eq!(parse_hook_activity(br#"{"cwd":""}"#), None);
     }
