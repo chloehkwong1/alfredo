@@ -4,6 +4,7 @@ import { startPollInterval } from "../../services/pollInterval";
 import {
   formatWaitingAge,
   mergeOrchestrations,
+  orchestrationsFromLinks,
   orchestrationsFromNotes,
   orchestrationsFromRules,
   yourTurnRows,
@@ -14,12 +15,14 @@ interface YourTurnSectionProps {
   selectedRepos: string[];
   repoDisplayNames?: Record<string, string>;
   repoShortLabels?: Record<string, string>;
+  /** Hand-set worktree names, keyed by worktree path. */
+  worktreeLabels?: Record<string, string>;
 }
 
 /** Worktrees inside the person's orchestrations that need them, oldest first.
  *  Renders nothing — no label, no spacing — when there are none. Navigation
  *  only: a row opens its worktree and does nothing else. */
-function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels }: YourTurnSectionProps) {
+function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels, worktreeLabels }: YourTurnSectionProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const rules = useWorkspaceStore((s) => s.orchestrationRules);
   const seen = useWorkspaceStore((s) => s.seenWorktrees);
@@ -31,18 +34,21 @@ function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels }: Y
   const [, setTick] = useState(0);
 
   const { rows, reposWithOrchestrations, repoOfWorktree } = useMemo(() => {
-    const orchestrations = selectedRepos.flatMap((repo) =>
-      mergeOrchestrations(
+    // Notes and rules first: `yourTurnRows` gives a worktree to the first
+    // orchestration that lists it, so a link never moves a worktree they place.
+    const orchestrations = selectedRepos.flatMap((repo) => [
+      ...mergeOrchestrations(
         orchestrationsFromNotes(repo, worktrees),
         orchestrationsFromRules(repo, rules[repo] ?? [], worktrees),
       ),
-    );
+      ...orchestrationsFromLinks(repo, worktrees, worktreeLabels ?? {}),
+    ]);
     return {
       rows: yourTurnRows(orchestrations, worktrees, seen, unread, since),
       reposWithOrchestrations: new Set(orchestrations.map((o) => o.repoPath)).size,
       repoOfWorktree: new Map(worktrees.map((wt) => [wt.id, wt.repoPath])),
     };
-  }, [selectedRepos, rules, worktrees, seen, unread, since]);
+  }, [selectedRepos, rules, worktrees, worktreeLabels, seen, unread, since]);
 
   const hasRows = rows.length > 0;
   useEffect(() => {

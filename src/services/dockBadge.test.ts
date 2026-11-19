@@ -140,6 +140,14 @@ describe("computeBadgeCount", () => {
     expect(worktreeNeedsYou(pending, new Set(["c"]), new Set())).toBe(false);
   });
 
+  it("a worked-from worktree does not need you", () => {
+    const linked = wt({ id: "b", agentStatus: "notRunning", workedFrom: { worktreeId: "a", running: true } });
+    const finished = wt({ id: "c", agentStatus: "notRunning", workedFrom: { worktreeId: "a", running: false } });
+    expect(worktreeNeedsYou(linked, new Set(), new Set())).toBe(false);
+    expect(worktreeNeedsYou(finished, new Set(), new Set())).toBe(false);
+    expect(computeBadgeCount({ worktrees: [linked, finished], seen: new Set(), unread: new Set(), notificationsEnabled: true })).toBe(0);
+  });
+
   it("sums across multiple attention worktrees", () => {
     const count = computeBadgeCount({
       worktrees: [

@@ -656,6 +656,7 @@ function Sidebar({
             selectedRepos={effectiveSelectedRepos}
             repoDisplayNames={repoDisplayNames}
             repoShortLabels={repoShortLabels}
+            worktreeLabels={worktreeLabels}
           />
           {hasWorktreeRepos && (pinnedWorktrees.size > 0 || hideUnpinned) && (
             <div className="sticky top-0 z-10 flex justify-end gap-1 px-3.5 pb-1 bg-gradient-to-b from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent">

@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, ArrowUpRight, Settings, Pencil } from "lucide-react";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
-import type { AgentState, Worktree } from "../../types";
+import type { AgentState, WorkedFrom, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { rebaseWorktree, setStackParent, runSetupScripts, getCommitsBehindMain, resolveStackPending, STACK_ADOPT_NOT_CLEAN } from "../../api";
 import { bulkMoveToColumn } from "../../services/bulkWorktreeActions";
@@ -14,6 +14,7 @@ import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useAppConfigValue } from "../../stores/appConfigStore";
 import { usePrStore } from "../../stores/prStore";
 import { worktreeDisplayLabel } from "../../lib/worktreeDisplayLabel";
 import {
@@ -349,6 +350,20 @@ function getStatusText(status: AgentState | string): string {
   return statusText[status] ?? "Not running";
 }
 
+/** What a row with no agent of its own says while another session works in
+ *  its worktree, or null when it keeps its own status text. `headLabel` is the
+ *  name of that session's worktree; a link to a worktree that is gone says
+ *  nothing. No `worktreeId` means a session Alfredo did not start. */
+export function workedFromText(
+  effectiveStatus: string,
+  workedFrom: WorkedFrom | undefined,
+  headLabel: string | undefined,
+): string | null {
+  if (effectiveStatus !== "notRunning" || !workedFrom?.running) return null;
+  if (workedFrom.worktreeId === undefined) return "Running outside Alfredo";
+  return headLabel === undefined ? null : `Running from ${headLabel}`;
+}
+
 function useAgentItemState(worktree: Worktree) {
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
   const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(worktree.id));
@@ -429,6 +444,21 @@ function AgentItemContent({
   // position) are the card's information payload, and tertiary only clears
   // WCAG AA by a hair. Tertiary is reserved for decorative/hover-revealed text.
   const mutedTextClass = "text-text-secondary";
+  // The name of the worktree this one is worked from. Each selector returns a
+  // string or undefined, never the worktree or the labels record, so the row
+  // re-renders when that name changes and on no other store patch.
+  const headId = worktree.workedFrom?.worktreeId;
+  const headPath = useWorkspaceStore((s) =>
+    headId === undefined ? undefined : s.worktrees.find((wt) => wt.id === headId)?.path,
+  );
+  const headOwnLabel = useWorkspaceStore((s) => {
+    const head = headId === undefined ? undefined : s.worktrees.find((wt) => wt.id === headId);
+    return head ? head.note?.label ?? head.branch : undefined;
+  });
+  const headHandLabel = useAppConfigValue((s) =>
+    headPath === undefined ? undefined : s.config?.worktreeLabels?.[headPath],
+  );
+  const workedFromLabel = workedFromText(effectiveStatus, worktree.workedFrom, headHandLabel ?? headOwnLabel);
   // Once GitHub owns the stack, the title-row native chip is the single stack
   // indicator — the Alfredo chain row below would duplicate it (and imply
   // Alfredo still restacks a stack it has stood down on).
@@ -464,7 +494,7 @@ function AgentItemContent({
       <span
         className={[
           "mt-1 h-2 w-2 rounded-full flex-shrink-0",
-          getDotColor(effectiveStatus),
+          getDotColor(workedFromLabel ? "busy" : effectiveStatus),
           getDotGlowClass(effectiveStatus),
           shouldPulse ? "animate-pulse-dot" : "",
         ].join(" ")}
@@ -534,7 +564,7 @@ function AgentItemContent({
           <span className="flex items-center gap-1.5">
             <span className={[
               "text-xs truncate",
-              (effectiveStatus as string) === "busy"
+              (effectiveStatus as string) === "busy" || workedFromLabel
                 ? "text-status-busy font-medium"
                 : (effectiveStatus as string) === "waitingForInput"
                   ? "text-accent-primary font-medium"
@@ -552,7 +582,7 @@ function AgentItemContent({
                       : worktree.monitorPending
                         ? <>Monitoring<ThinkingDots /></>
                         : <><ThinkingText /><ThinkingDots /></>)
-                  : getStatusText(effectiveStatus)}
+                  : workedFromLabel ?? getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
             {!isServerRunning && assignedPort && (

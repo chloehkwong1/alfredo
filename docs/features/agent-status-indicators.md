@@ -1,6 +1,6 @@
 ---
 title: Sidebar agent status — Thinking, Waiting for input, Monitoring, Running agents, Unresponsive
-keywords: [status, dot, thinking, waiting for input, monitoring, running agents, unresponsive, idle, busy, sidebar, label, indicator, stale]
+keywords: [status, dot, thinking, waiting for input, monitoring, running agents, running from, running outside alfredo, unresponsive, idle, busy, sidebar, label, indicator, stale]
 ui_path: Sidebar → worktree row → status dot + label
 ---
 
@@ -28,6 +28,12 @@ agent is doing right now. The states:
   with no output and no lifecycle signals. Usually a hung process or a
   killed terminal; restarting the tab clears it.
 - **Not running** — no agent process in this worktree.
+- **Running from <name>** — the worktree has no agent of its own, but
+  the Claude Code session in the named worktree is working in it,
+  itself or through a subagent. The dot takes the colour of a working
+  agent. See [Orchestrations](orchestrations.md).
+- **Running outside Alfredo** — the same, for a Claude Code session
+  that Alfredo did not start.
 
 Alfredo installs lifecycle hooks per worktree for Claude Code, Codex,
 and Gemini CLI, with output-based detection as a fallback when hooks

@@ -8,12 +8,13 @@ import { createRoot } from "react-dom/client";
 // Loaded the other way round, the factory's importOriginal() pulls StatusGroup
 // in while the mock is still being built, and it keeps the real component.
 import { StatusGroup } from "./StatusGroup";
-import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, travelsWithDrag } from "./AgentItem";
+import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, travelsWithDrag, workedFromText } from "./AgentItem";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useAppConfigStore } from "../../stores/appConfigStore";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
-import type { NativeStackInfo, PrStatus, Worktree } from "../../types";
+import type { GlobalAppConfig, NativeStackInfo, PrStatus, Worktree } from "../../types";
 import type { StackChain } from "../../lib/stackChain";
 
 describe("computeEffectiveStatus", () => {
@@ -590,6 +591,21 @@ describe("travelsWithDrag", () => {
   });
 });
 
+describe("workedFromText", () => {
+  it("names the worktree the work runs from", () => {
+    expect(workedFromText("notRunning", { worktreeId: "r::a", running: true }, "Billing")).toBe("Running from Billing");
+  });
+  it("names a session Alfredo did not start", () => {
+    expect(workedFromText("notRunning", { running: true }, undefined)).toBe("Running outside Alfredo");
+  });
+  it("stays silent when the worktree has its own status, the work has stopped, or the head is gone", () => {
+    expect(workedFromText("busy", { worktreeId: "r::a", running: true }, "Billing")).toBeNull();
+    expect(workedFromText("notRunning", { worktreeId: "r::a", running: false }, "Billing")).toBeNull();
+    expect(workedFromText("notRunning", { worktreeId: "r::a", running: true }, undefined)).toBeNull();
+    expect(workedFromText("notRunning", undefined, undefined)).toBeNull();
+  });
+});
+
 // ── Render fan-out ────────────────────────────────────────────────
 // Every store patch (usePty's 500ms channelAlive tick, each hook status flip)
 // replaces the worktree array. Rows must not subscribe to the whole array, or
@@ -678,6 +694,55 @@ describe("AgentItem render fan-out", () => {
     expect(rerendered).toEqual([]);
     root.unmount();
     container.remove();
+  });
+
+  // A worked-from row reads its head's name from the stores. A patch to the
+  // head that leaves the name alone (each hook status flip does one) must not
+  // re-render it; a new name must, and only that row.
+  it("a worked-from row names its head and re-renders only when that name changes", async () => {
+    const worktrees = Array.from({ length: 4 }, (_, i) => row(i));
+    const [head, linked] = worktrees;
+    worktrees[0] = { ...head, agentStatus: "busy" };
+    worktrees[1] = { ...linked, agentStatus: "notRunning", workedFrom: { worktreeId: head.id, running: true } };
+    useWorkspaceStore.setState({ worktrees });
+    // No hand label yet; `initialFetchStarted` keeps the store from fetching one.
+    useAppConfigStore.setState({ config: null, initialFetchStarted: true });
+
+    const renders = new Map<string, number>();
+    const noop = () => {};
+    const rows = worktrees.map((wt) =>
+      React.createElement(
+        Profiler,
+        { key: wt.id, id: wt.id, onRender: (id: string) => renders.set(id, (renders.get(id) ?? 0) + 1) },
+        React.createElement(AgentItem, {
+          worktree: wt, isSelected: false, isPinned: false, isDimmed: false, onClick: noop,
+          isMultiSelected: false, onDelete: noop, onArchive: noop, repoPath: "/repo",
+          repoColors: {}, repoDisplayNames: {}, repoShortLabels: {}, label: undefined, onRename: noop,
+        }),
+      ),
+    );
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(React.createElement("div", null, ...rows)); });
+    expect(container.textContent).toContain(`Running from ${head.branch}`);
+    expect(container.textContent).not.toContain("Not running");
+    renders.clear();
+
+    await act(async () => {
+      useWorkspaceStore.getState().updateWorktree(head.id, { channelAlive: true });
+      useWorkspaceStore.getState().updateWorktree(worktrees[2].id, { channelAlive: true });
+    });
+    expect([...renders.keys()]).toEqual([]);
+
+    await act(async () => {
+      useAppConfigStore.setState({ config: { worktreeLabels: { [head.path]: "Billing" } } as unknown as GlobalAppConfig });
+    });
+    expect([...renders.keys()]).toEqual([linked.id]);
+    expect(container.textContent).toContain("Running from Billing");
+    root.unmount();
+    container.remove();
+    useAppConfigStore.setState({ config: null });
   });
 
   // The invariant above only holds in the real tree if StatusGroup hands each
