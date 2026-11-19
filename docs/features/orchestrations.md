@@ -42,7 +42,11 @@ no rule, no note and no setup. A link is made when:
 - a subagent of the session runs in the other worktree, for example
   a subagent with worktree isolation;
 - the session or one of its subagents edits or writes a file there;
-- the session itself moves into the other worktree.
+- the session itself moves into the other worktree;
+- the session starts another Claude Code session in the other
+  worktree's folder (the folder itself, not a subfolder). Alfredo
+  sees that session while it is working or waiting, so one that works
+  only briefly can be missed.
 
 Reading or searching files there makes no link, so a session that
 only reviews another worktree stays separate.
@@ -54,10 +58,12 @@ When the work stops the row says "Not running" again. It never turns
 to "Done" and it adds nothing to the dock badge: the session's own
 row tells you when the session finishes.
 
-A Claude Code session that Alfredo did not start, for example one you
-start in a terminal outside Alfredo, shows on its worktree's row as
-**Running outside Alfredo**. These sessions show only while at least
-one Claude Code session in Alfredo is alive.
+A Claude Code session that you start in a terminal outside Alfredo
+shows in the same way, as **Running outside Alfredo**, on the row of
+the worktree it was started in. It shows while it is working or
+waiting, and only if it was started in the worktree's folder itself,
+not in a subfolder. These sessions show only while at least one agent
+session is running in Alfredo; a hibernated tab does not count.
 
 The session's worktree and the worktrees of the same repo that it
 works in form an orchestration. It is named after the session's
@@ -66,20 +72,25 @@ branch. In **Your turn** the session's worktree is the item
 `orchestrator`. A subagent cannot ask you a question, so a question
 shows on the session's row, and a click opens the session's worktree.
 Rules and notes come first: a worktree they already place keeps that
-place. A link stays until you close the session's tab or quit
-Alfredo.
+place.
+
+A link stays until you close the session's tab or quit Alfredo. The
+other worktree stays in the orchestration after the work in it stops,
+and when either worktree changes branch. A session that is restarted,
+or that fails to start, loses its links too. A lost link comes back
+the next time the session works in that worktree.
 
 Limits of these links:
 
-- An orchestrator that starts a separate Alfredo session in each
-  worktree makes no link. Use a rule or a worktree note for it.
+- A session that starts a separate Alfredo session in each worktree
+  makes no link. Use a rule or a worktree note for it.
 - Only Claude Code sessions make links. Codex is not covered.
 - Work done only through shell commands is not seen.
 - A session that edits a file in another worktree without moving into
   it adds that worktree to the orchestration, but the row keeps "Not
   running".
-- Links are kept in memory. After a restart a link comes back at the
-  session's next tool call in that worktree.
+- Links are kept in memory. After Alfredo restarts, a link comes back
+  the next time the session works in that worktree.
 - The kanban card still says "Not running".
 - Paths are compared as text, so a worktree reached through a symlink
   can be missed.
@@ -87,11 +98,15 @@ Limits of these links:
 **What a row shows:**
 
 - **Answer** — the agent is waiting for input. The row shows its
-  question, then the orchestration name, the item (the branch after
-  the prefix, or the name from a worktree note) and `waiting` plus
+  question, then the orchestration name, the item and `waiting` plus
   how long.
 - **Check** — the agent finished, errored, or is ready to start. The
   row shows which, then the orchestration name, the item and how long.
+
+The item is the branch after the prefix, or the name from a worktree
+note. In an orchestration made from links, the item is `orchestrator`
+for the session's own worktree, and the row's name for a worktree the
+session works in.
 
 Click a row to open that worktree. That is all it does. The list
 ignores **Pinned only**.
