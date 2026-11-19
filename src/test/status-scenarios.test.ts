@@ -882,6 +882,23 @@ describe("statusMirror", () => {
     expect(written).toEqual(["wt-mirror", "wt-linked"]);
   });
 
+  it("projects work the session list reports onto its worktree, and clears it", () => {
+    const linked = () => useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-linked")!;
+
+    // A session Alfredo did not start: no worktree to name.
+    useSessionStatusStore.getState().setExternalWork({ "wt-linked": { running: true } });
+    expect(linked().workedFrom).toEqual({ running: true });
+    expect(linked().agentStatus).toBe("notRunning");
+    useSessionStatusStore.getState().setExternalWork({});
+    expect(linked().workedFrom).toBeUndefined();
+
+    // A child session of the session in wt-mirror.
+    useSessionStatusStore.getState().setExternalWork({ "wt-linked": { worktreeId: "wt-mirror", running: true } });
+    expect(linked().workedFrom).toEqual({ worktreeId: "wt-mirror", running: true });
+    useSessionStatusStore.getState().setExternalWork({});
+    expect(linked().workedFrom).toBeUndefined();
+  });
+
   it("drops a session's links when its status is cleared", () => {
     useSessionStatusStore.getState().setSessionLinks("k", { "wt-linked": { agentIds: [], mainIn: true } });
     useSessionStatusStore.getState().clearSessionStatus("k");

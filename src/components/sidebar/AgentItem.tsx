@@ -458,7 +458,7 @@ function AgentItemContent({
   const headHandLabel = useAppConfigValue((s) =>
     headPath === undefined ? undefined : s.config?.worktreeLabels?.[headPath],
   );
-  const workedFromLabel = workedFromText(effectiveStatus, worktree.workedFrom, headHandLabel ?? headOwnLabel);
+  const workedFromStatus = workedFromText(effectiveStatus, worktree.workedFrom, headHandLabel ?? headOwnLabel);
   // Once GitHub owns the stack, the title-row native chip is the single stack
   // indicator — the Alfredo chain row below would duplicate it (and imply
   // Alfredo still restacks a stack it has stood down on).
@@ -494,7 +494,7 @@ function AgentItemContent({
       <span
         className={[
           "mt-1 h-2 w-2 rounded-full flex-shrink-0",
-          getDotColor(workedFromLabel ? "busy" : effectiveStatus),
+          getDotColor(workedFromStatus ? "busy" : effectiveStatus),
           getDotGlowClass(effectiveStatus),
           shouldPulse ? "animate-pulse-dot" : "",
         ].join(" ")}
@@ -564,7 +564,7 @@ function AgentItemContent({
           <span className="flex items-center gap-1.5">
             <span className={[
               "text-xs truncate",
-              (effectiveStatus as string) === "busy" || workedFromLabel
+              (effectiveStatus as string) === "busy" || workedFromStatus
                 ? "text-status-busy font-medium"
                 : (effectiveStatus as string) === "waitingForInput"
                   ? "text-accent-primary font-medium"
@@ -582,7 +582,7 @@ function AgentItemContent({
                       : worktree.monitorPending
                         ? <>Monitoring<ThinkingDots /></>
                         : <><ThinkingText /><ThinkingDots /></>)
-                  : workedFromLabel ?? getStatusText(effectiveStatus)}
+                  : workedFromStatus ?? getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
             {!isServerRunning && assignedPort && (

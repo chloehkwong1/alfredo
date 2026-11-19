@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { startPollInterval } from "../../services/pollInterval";
-import {
-  formatWaitingAge,
-  mergeOrchestrations,
-  orchestrationsFromLinks,
-  orchestrationsFromNotes,
-  orchestrationsFromRules,
-  yourTurnRows,
-} from "../../services/orchestrations";
+import { formatWaitingAge, orchestrationsForRepo, yourTurnRows } from "../../services/orchestrations";
 import { repoBadgeLabel } from "./RepoSelector";
 
 interface YourTurnSectionProps {
@@ -34,15 +27,9 @@ function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels, wor
   const [, setTick] = useState(0);
 
   const { rows, reposWithOrchestrations, repoOfWorktree } = useMemo(() => {
-    // Notes and rules first: `yourTurnRows` gives a worktree to the first
-    // orchestration that lists it, so a link never moves a worktree they place.
-    const orchestrations = selectedRepos.flatMap((repo) => [
-      ...mergeOrchestrations(
-        orchestrationsFromNotes(repo, worktrees),
-        orchestrationsFromRules(repo, rules[repo] ?? [], worktrees),
-      ),
-      ...orchestrationsFromLinks(repo, worktrees, worktreeLabels ?? {}),
-    ]);
+    const orchestrations = selectedRepos.flatMap((repo) =>
+      orchestrationsForRepo(repo, worktrees, rules[repo] ?? [], worktreeLabels ?? {}),
+    );
     return {
       rows: yourTurnRows(orchestrations, worktrees, seen, unread, since),
       reposWithOrchestrations: new Set(orchestrations.map((o) => o.repoPath)).size,

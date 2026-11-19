@@ -14,6 +14,7 @@ import {
   withQuietLink,
   workedFromByWorktree,
   orchestrationsFromLinks,
+  orchestrationsForRepo,
   type Orchestration,
   type SessionLinks,
 } from "./orchestrations";
@@ -592,6 +593,19 @@ describe("applyActivityToLinks", () => {
     expect(applyActivityToLinks(inB, "r::a", { cwd: "/wt/a" }, "toolStart", trees))
       .toEqual({ "r::b": { agentIds: [], mainIn: false } });
   });
+  it("returns the same object when a main session parked in another worktree sends the same cwd again", () => {
+    const inB = applyActivityToLinks(none, "r::a", { cwd: "/wt/b" }, "toolStart", trees);
+    expect(applyActivityToLinks(inB, "r::a", { cwd: "/wt/b" }, "toolStart", trees)).toBe(inB);
+    expect(applyActivityToLinks(inB, "r::a", { cwd: "/wt/b/src" }, "toolEnd", trees)).toBe(inB);
+  });
+  it("ignores a sub-agent event that names no agent", () => {
+    // A Claude Code version that leaves `agent_id` out of SubagentStart / SubagentStop:
+    // the cwd is the sub-agent's, so it must not move the main session.
+    expect(applyActivityToLinks(none, "r::a", { cwd: "/wt/b" }, "subagentStart", trees)).toBe(none);
+    expect(applyActivityToLinks(none, "r::a", { cwd: "/wt/a", writePath: "/wt/b/x.ts" }, "subagentStart", trees)).toBe(none);
+    const inB = { "r::b": { agentIds: [], mainIn: true } };
+    expect(applyActivityToLinks(inB, "r::a", { cwd: "/wt/a" }, "subagentEnd", trees)).toBe(inB);
+  });
   it("records a main-session write as a link that is not running", () => {
     const linked = applyActivityToLinks(none, "r::a", { cwd: "/wt/a", writePath: "/wt/b/x.ts" }, "toolStart", trees);
     expect(linked).toEqual({ "r::b": { agentIds: [], mainIn: false } });
@@ -663,5 +677,36 @@ describe("orchestrationsFromLinks", () => {
   it("ignores a head in another repo", () => {
     const worktrees = [wt({ id: "r::b", repoPath: "r", workedFrom: { worktreeId: "other::a", running: true } })];
     expect(orchestrationsFromLinks("r", worktrees, {})).toEqual([]);
+  });
+});
+
+describe("orchestrationsForRepo", () => {
+  const rules = [{ name: "Billing rule", branchPrefix: "jack/billing-" }];
+  const head = wt({ id: "r::orch", path: "/wt/orch", branch: "jack/orchestrator", repoPath: "r", agentStatus: "busy" });
+  const both = wt({
+    id: "r::api", path: "/wt/api", branch: "jack/billing-api", repoPath: "r",
+    agentStatus: "waitingForInput", workedFrom: { worktreeId: "r::orch", running: false },
+  });
+
+  it("puts note and rule orchestrations before link orchestrations", () => {
+    const noted = wt({ id: "r::n", path: "/wt/n", branch: "n", repoPath: "r", note: { orchestration: "Noted" } });
+    expect(orchestrationsForRepo("r", [head, both, noted], rules, { "/wt/orch": "Billing" })).toEqual([
+      { repoPath: "r", name: "Noted", items: [{ worktreeId: "r::n", title: "n" }] },
+      { repoPath: "r", name: "Billing rule", items: [{ worktreeId: "r::api", title: "api" }] },
+      { repoPath: "r", name: "Billing", items: [
+        { worktreeId: "r::orch", title: "orchestrator" },
+        { worktreeId: "r::api", title: "jack/billing-api" },
+      ] },
+    ]);
+  });
+  it("leaves a worktree that a rule and a link both list in the rule's orchestration", () => {
+    const rows = yourTurnRows(orchestrationsForRepo("r", [head, both], rules, {}), [head, both], new Set(["r::api"]), new Set(), {});
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ worktreeId: "r::api", orchestrationName: "Billing rule", itemTitle: "api" });
+  });
+  it("lists only the given repo", () => {
+    expect(orchestrationsForRepo("other", [head, both], rules, {})).toEqual([
+      { repoPath: "other", name: "Billing rule", items: [] },
+    ]);
   });
 });

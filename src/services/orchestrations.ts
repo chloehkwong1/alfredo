@@ -248,6 +248,9 @@ export function applyActivityToLinks(
 ): SessionLinks {
   if (!activity) return prev;
   const { cwd, writePath, agentId } = activity;
+  // A sub-agent event that names no agent: its cwd is the sub-agent's, not the
+  // main session's, and there is no agent to record.
+  if (agentId === undefined && (phase === "subagentStart" || phase === "subagentEnd")) return prev;
   const cwdId = cwd === undefined ? undefined : worktreeForPath(cwd, worktrees, ownWorktreeId);
   const writeId = writePath === undefined ? undefined : worktreeForPath(writePath, worktrees, ownWorktreeId);
   const next: SessionLinks = { ...prev };
@@ -289,7 +292,8 @@ export function applyActivityToLinks(
   return changed ? next : prev;
 }
 
-/** Every session's sub-agents have stopped working: empty each `agentIds`, keep `mainIn`. */
+/** The session's sub-agents have stopped working: empty the `agentIds` of each
+ *  of its links, keep `mainIn`. Returns `prev` itself when none was working. */
 export function endAgentWork(prev: SessionLinks): SessionLinks {
   if (Object.values(prev).every((link) => link.agentIds.length === 0)) return prev;
   const next: SessionLinks = {};
@@ -350,4 +354,22 @@ export function orchestrationsFromLinks(
       items: [{ worktreeId: head.id, title: "orchestrator" }, ...linked],
     };
   });
+}
+
+/** A repo's orchestrations: those from notes and rules first, then those from
+ *  links. `yourTurnRows` gives a worktree to the first orchestration that
+ *  lists it, so a link never moves a worktree that a note or a rule places. */
+export function orchestrationsForRepo(
+  repoPath: string,
+  worktrees: Worktree[],
+  rules: OrchestrationRule[],
+  labels: Record<string, string>,
+): Orchestration[] {
+  return [
+    ...mergeOrchestrations(
+      orchestrationsFromNotes(repoPath, worktrees),
+      orchestrationsFromRules(repoPath, rules, worktrees),
+    ),
+    ...orchestrationsFromLinks(repoPath, worktrees, labels),
+  ];
 }

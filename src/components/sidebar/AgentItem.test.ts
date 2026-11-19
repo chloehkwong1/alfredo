@@ -8,7 +8,7 @@ import { createRoot } from "react-dom/client";
 // Loaded the other way round, the factory's importOriginal() pulls StatusGroup
 // in while the mock is still being built, and it keeps the real component.
 import { StatusGroup } from "./StatusGroup";
-import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, travelsWithDrag, workedFromText } from "./AgentItem";
+import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, statusDotColor, travelsWithDrag, workedFromText } from "./AgentItem";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAppConfigStore } from "../../stores/appConfigStore";
 import { nativeStackChipLabel } from "./StackGlyph";
@@ -727,6 +727,15 @@ describe("AgentItem render fan-out", () => {
     await act(async () => { root.render(React.createElement("div", null, ...rows)); });
     expect(container.textContent).toContain(`Running from ${head.branch}`);
     expect(container.textContent).not.toContain("Not running");
+    // The linked row shows the busy colours: its own status is "not running".
+    const linkedRow = container.firstElementChild!.children[1];
+    expect(linkedRow.textContent).toContain(`Running from ${head.branch}`);
+    const dot = linkedRow.querySelector(".h-2.w-2.rounded-full")!;
+    expect(dot.className.split(" ")).toContain(statusDotColor.busy);
+    expect(dot.className.split(" ")).not.toContain(statusDotColor.notRunning);
+    const statusLine = [...linkedRow.querySelectorAll("span")]
+      .find((el) => el.children.length === 0 && el.textContent === `Running from ${head.branch}`)!;
+    expect(statusLine.className.split(" ")).toContain("text-status-busy");
     renders.clear();
 
     await act(async () => {

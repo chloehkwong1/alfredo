@@ -117,8 +117,10 @@ export interface Worktree {
   /** Frontend-only: the open question of the first waiting agent tab. Written
    *  by statusMirror; never persisted. */
   question?: AgentQuestion;
-  /** Frontend-only: set while another session works in this worktree. Written
-   *  by statusMirror; never persisted. */
+  /** Frontend-only: the session, other than this worktree's own, that works or
+   *  has worked in it. A link that has stopped keeps it set with
+   *  `running: false`; work by a session Alfredo did not start clears it when
+   *  it stops. Written by statusMirror; never persisted. */
   workedFrom?: WorkedFrom;
   channelAlive?: boolean;
   staleBusy?: boolean;
