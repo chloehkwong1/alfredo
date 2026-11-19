@@ -1,0 +1,35 @@
+src/components/sidebar/AgentItem.tsx
+  s_aeb2bb1fcfc01a::t_e8e76b6416f499 7,17,353-366,447-461,497,567
+  s_aeb2bb1fcfc01a::t_39c4f3621e0561 585
+src/components/sidebar/Sidebar.tsx
+  s_aeb2bb1fcfc01a::t_e8e76b6416f499 659
+src/components/sidebar/AgentItem.test.ts
+  s_aeb2bb1fcfc01a::t_f97c6ff013eeff 13,17,594-608,699-707,709-744
+  s_aeb2bb1fcfc01a::t_785acb07d14e4c 708,745
+  s_aeb2bb1fcfc01a::t_161d682cb334cf 11,746-747
+docs/features/agent-status-indicators.md
+  s_aeb2bb1fcfc01a::t_2e53a3a9efe6cc 3,31-36
+docs/features/orchestrations.md
+  s_aeb2bb1fcfc01a::t_2e53a3a9efe6cc 3,12-14,38-80
+  s_aeb2bb1fcfc01a::t_b6692b35af9448 81
+src/components/sidebar/YourTurnSection.tsx
+  s_aeb2bb1fcfc01a::t_e8e76b6416f499 7,18-19,25,37-40,44-45,51
+src/services/dockBadge.test.ts
+  s_aeb2bb1fcfc01a::t_0f689187c9b0f3 143-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c6d38e23f4f88a573002f4208ab3b876ad42eab",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
