@@ -1,0 +1,24 @@
+src/stores/workspaceStore.test.ts
+  s_aeb2bb1fcfc01a::t_8a0b1185c59bc8 89-95,97-99
+  s_aeb2bb1fcfc01a::t_99fc589556e534 96
+src/stores/workspaceStore.ts
+  s_aeb2bb1fcfc01a::t_99fc589556e534 373-376
+src/test/status-scenarios.test.ts
+  s_aeb2bb1fcfc01a::t_8a0b1185c59bc8 1333-1372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e330c89db0e1b76ee9d5da1a1f421ffa19a2586",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
