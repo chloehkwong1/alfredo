@@ -1,0 +1,30 @@
+src/services/sessionChannel.ts
+  s_aeb2bb1fcfc01a::t_4cac95808fd774 22,444-469
+  s_aeb2bb1fcfc01a::t_42316fb8c81c2c 470-471
+src/services/orchestrations.ts
+  s_aeb2bb1fcfc01a::t_4cac95808fd774 302-307
+src/services/sessionManager.test.ts
+  s_aeb2bb1fcfc01a::t_f2f4a24e1d3a04 15,329-369,433-491
+src/services/sessionManager.ts
+  s_aeb2bb1fcfc01a::t_4cac95808fd774 708-721
+  s_aeb2bb1fcfc01a::t_8ce074b5faa6d4 35,37,40
+src/services/orchestrations.test.ts
+  s_aeb2bb1fcfc01a::t_f2f4a24e1d3a04 14,614-627
+  s_aeb2bb1fcfc01a::t_3c55fb8abc0809 628-629
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abfe95af5472e84521d12f2e06ae3d3176ff4d37",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
