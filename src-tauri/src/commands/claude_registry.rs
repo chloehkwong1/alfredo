@@ -7,6 +7,7 @@
 //! hook-derived status — see sessionManager.applyRegistrySnapshot.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use crate::types::AppError;
@@ -33,6 +34,11 @@ pub struct ClaudeRegistryEntry {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiting_for: Option<String>,
+    /// The Alfredo terminal session whose `claude` process this entry descends
+    /// from (or is). Set after parsing by `poll_claude_registry`; absent for
+    /// sessions started outside Alfredo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alfredo_session_id: Option<String>,
 }
 
 /// Parse the raw stdout of `claude agents --json`. Pure — unit-tested below.
@@ -82,6 +88,73 @@ fn find_in_path_string(path: &str, name: &str) -> Option<String> {
         .map(|cand| cand.to_string_lossy().into_owned())
 }
 
+/// Parse `ps -axo pid=,ppid=` output into child pid -> parent pid. Lines that
+/// are not two numbers are skipped.
+fn parse_ps_parents(raw: &str) -> HashMap<u32, u32> {
+    raw.lines()
+        .filter_map(|line| {
+            let mut cols = line.split_whitespace();
+            let pid = cols.next()?.parse().ok()?;
+            let ppid = cols.next()?.parse().ok()?;
+            Some((pid, ppid))
+        })
+        .collect()
+}
+
+/// The Alfredo session that owns `pid`: `pid` itself or the nearest ancestor
+/// named in `owners` (pid -> session id). Looks at most 32 steps up and stops
+/// at pid 0 or 1 and at a pid with no known parent, so a loop in the table
+/// cannot hang it.
+fn owning_session(
+    pid: u32,
+    parents: &HashMap<u32, u32>,
+    owners: &HashMap<u32, String>,
+) -> Option<String> {
+    let mut current = pid;
+    for _ in 0..32 {
+        if let Some(session_id) = owners.get(&current) {
+            return Some(session_id.clone());
+        }
+        if current <= 1 {
+            return None;
+        }
+        current = *parents.get(&current)?;
+    }
+    None
+}
+
+/// Fill `alfredo_session_id` on each entry. Best effort: runs `ps` once, and
+/// not at all when no pid file exists; if `ps` cannot start, fails or times
+/// out, the entries are left as they are.
+async fn annotate_alfredo_sessions(entries: &mut [ClaudeRegistryEntry]) {
+    let owners = tokio::task::spawn_blocking(|| {
+        crate::pty_manager::session_pids_in(std::path::Path::new("/tmp"))
+    })
+    .await
+    .unwrap_or_default();
+    if owners.is_empty() {
+        return;
+    }
+    let Ok(Ok(output)) = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        tokio::process::Command::new("ps")
+            .args(["-axo", "pid=,ppid="])
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    else {
+        return;
+    };
+    if !output.status.success() {
+        return;
+    }
+    let parents = parse_ps_parents(&String::from_utf8_lossy(&output.stdout));
+    for entry in entries {
+        entry.alfredo_session_id = owning_session(entry.pid, &parents, &owners);
+    }
+}
+
 /// Run `claude agents --json` and return the parsed session entries.
 /// Fails fast (5s timeout) — the frontend backs off exponentially on
 /// consecutive failures (missing binary, pre-registry CLI version, load
@@ -108,7 +181,9 @@ pub async fn poll_claude_registry() -> Result<Vec<ClaudeRegistryEntry>> {
             output.status
         )));
     }
-    parse_agents_json(&String::from_utf8_lossy(&output.stdout))
+    let mut entries = parse_agents_json(&String::from_utf8_lossy(&output.stdout))?;
+    annotate_alfredo_sessions(&mut entries).await;
+    Ok(entries)
 }
 
 #[cfg(test)]
@@ -184,5 +259,35 @@ mod tests {
         assert_eq!(find_in_path_string(&path, "missing-binary"), None);
         assert_eq!(find_in_path_string("", "claude"), None);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn parse_ps_parents_reads_pid_and_ppid_columns() {
+        let parents = parse_ps_parents("    1     0\n  857     1\n82208   857\n82652 82651\njunk\n");
+        assert_eq!(parents.get(&82208), Some(&857));
+        assert_eq!(parents.len(), 4);
+    }
+
+    #[test]
+    fn owning_session_walks_up_to_an_alfredo_session() {
+        let parents = HashMap::from([(82652, 82651), (82651, 82208), (82208, 500), (500, 1), (900, 1)]);
+        let owners = HashMap::from([(82208, "sess-a".to_string())]);
+        assert_eq!(owning_session(82652, &parents, &owners).as_deref(), Some("sess-a")); // a child session
+        assert_eq!(owning_session(82208, &parents, &owners).as_deref(), Some("sess-a")); // the session itself
+        assert_eq!(owning_session(900, &parents, &owners), None); // a terminal session
+        assert_eq!(owning_session(4242, &parents, &owners), None); // not in the table
+    }
+
+    #[test]
+    fn owning_session_survives_a_parent_loop() {
+        let parents = HashMap::from([(10, 11), (11, 10)]);
+        assert_eq!(owning_session(10, &parents, &HashMap::new()), None);
+    }
+
+    #[test]
+    fn entries_without_the_field_still_parse_and_serialise_without_it() {
+        let entries = parse_agents_json(r#"[{"pid":3,"cwd":"/c","sessionId":"s-3","status":"busy"}]"#).unwrap();
+        assert_eq!(entries[0].alfredo_session_id, None);
+        assert!(!serde_json::to_string(&entries[0]).unwrap().contains("alfredoSessionId"));
     }
 }

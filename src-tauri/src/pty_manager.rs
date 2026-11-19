@@ -1195,6 +1195,29 @@ fn classify_orphan(alive: bool, comm: SessionCommKind, ppid: Option<i32>) -> Orp
     }
 }
 
+/// Pid of each Alfredo terminal session's `claude` process, read from the
+/// `alfredo-claude-<session id>.pid` files in `dir`: pid -> session id.
+/// Unreadable and non-numeric files are skipped.
+pub(crate) fn session_pids_in(dir: &std::path::Path) -> HashMap<u32, String> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return HashMap::new();
+    };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            let session_id = path
+                .file_name()?
+                .to_str()?
+                .strip_prefix("alfredo-claude-")?
+                .strip_suffix(".pid")?
+                .to_string();
+            let pid = std::fs::read_to_string(&path).ok()?.trim().parse::<u32>().ok()?;
+            Some((pid, session_id))
+        })
+        .collect()
+}
+
 /// Reap session processes leaked by a previous Alfredo run that didn't shut
 /// down cleanly (crash, Force Quit, SIGKILL — none of which run
 /// `shutdown_all`). Walks the per-session pid files written at spawn: a live
@@ -3054,6 +3077,19 @@ mod tests {
         assert!(
             !after.contains("$ALFREDO_STATE_URL"),
             "hooks must be stripped when sidecar pid is alive but isn't a shell (pid reuse):\n{after}",
+        );
+    }
+
+    #[test]
+    fn session_pids_in_reads_only_numeric_session_pid_files() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        std::fs::write(tmp.path().join("alfredo-claude-s1.pid"), "123\n").unwrap();
+        std::fs::write(tmp.path().join("alfredo-claude-s2.pid"), "not-a-pid").unwrap();
+        std::fs::write(tmp.path().join("alfredo-claude-s3.worktree"), "/some/path").unwrap();
+        std::fs::write(tmp.path().join("other.pid"), "456").unwrap();
+        assert_eq!(
+            session_pids_in(tmp.path()),
+            HashMap::from([(123u32, "s1".to_string())]),
         );
     }
 }
