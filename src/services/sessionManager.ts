@@ -1292,6 +1292,8 @@ export class SessionManager implements SessionWriter {
       stateSourceMap.delete(oldId);
       stateSourceMap.set(newId, source);
     }
+    // Links and external work are keyed by the worktree a session works in.
+    useSessionStatusStore.getState().rekeyWorktree(oldId, newId);
   }
 
   // ── Internal helpers ───────────────────────────────────────────

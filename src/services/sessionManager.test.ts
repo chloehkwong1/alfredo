@@ -327,7 +327,7 @@ describe("externalWorkFromRegistry", () => {
 
 describe("external work in the store", () => {
   afterEach(() => {
-    useSessionStatusStore.setState({ external: {} });
+    useSessionStatusStore.setState({ external: {}, links: {} });
     useWorkspaceStore.setState({ worktrees: [] });
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockImplementation(() => Promise.resolve());
@@ -433,6 +433,24 @@ describe("external work in the store", () => {
     expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("poll_claude_registry");
     expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { running: true } });
     await manager.closeAll();
+  });
+
+  it("moves links and external work when a worktree's id changes", async () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("tab-a", "r::a", undefined, "/wt/a");
+    useSessionStatusStore.getState().setSessionLinks("tab-a", { "r::b": { agentIds: [], mainIn: true } });
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+
+    manager.rekeyWorktree("r::b", "r::b2");
+
+    expect(s.worktreeId).toBe("r::a");
+    expect(useSessionStatusStore.getState().links["tab-a"]).toEqual({ "r::b2": { agentIds: [], mainIn: true } });
+    expect(useSessionStatusStore.getState().external).toEqual({ "r::b2": { running: true } });
+
+    const before = useSessionStatusStore.getState();
+    manager.rekeyWorktree("r::unknown", "r::other");
+    expect(useSessionStatusStore.getState()).toBe(before);
+    useSessionStatusStore.getState().clearSessionStatus("tab-a");
   });
 
   describe("a session list that arrives late", () => {

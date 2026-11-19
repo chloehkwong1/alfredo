@@ -887,6 +887,83 @@ describe("statusMirror", () => {
     useSessionStatusStore.getState().clearSessionStatus("k");
     expect(useSessionStatusStore.getState().links["k"]).toBeUndefined();
   });
+
+  it("moves links and outside work to a worktree's new id", () => {
+    const store = useSessionStatusStore.getState();
+    store.setSessionLinks("k1", { "wt-linked": { agentIds: ["a1"], mainIn: false }, "wt-other": { agentIds: [], mainIn: true } });
+    store.setSessionLinks("k2", { "wt-other": { agentIds: [], mainIn: false } });
+    store.setExternalWork({ "wt-linked": { running: true }, "wt-other": { running: true } });
+    const untouched = useSessionStatusStore.getState().links["k2"];
+
+    store.rekeyWorktree("wt-linked", "wt-renamed");
+
+    const after = useSessionStatusStore.getState();
+    expect(after.links["k1"]).toEqual({ "wt-renamed": { agentIds: ["a1"], mainIn: false }, "wt-other": { agentIds: [], mainIn: true } });
+    expect(after.links["k2"]).toBe(untouched); // a session with no link to it keeps its object
+    expect(after.external).toEqual({ "wt-renamed": { running: true }, "wt-other": { running: true } });
+  });
+
+  it("keeps every object when a rekey has nothing to move", () => {
+    const store = useSessionStatusStore.getState();
+    store.setSessionLinks("k1", { "wt-linked": { agentIds: [], mainIn: true } });
+    store.setExternalWork({ "wt-linked": { worktreeId: "wt-mirror", running: true } });
+    const before = useSessionStatusStore.getState();
+    const worktrees = useWorkspaceStore.getState().worktrees;
+    const notified = vi.fn();
+    const stop = useSessionStatusStore.subscribe(notified);
+
+    store.rekeyWorktree("wt-unknown", "wt-renamed");
+    stop();
+
+    expect(useSessionStatusStore.getState()).toBe(before);
+    expect(useSessionStatusStore.getState().links).toBe(before.links);
+    expect(useSessionStatusStore.getState().external).toBe(before.external);
+    expect(notified).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().worktrees).toBe(worktrees); // and the mirror wrote nothing
+  });
+
+  it("keeps a linked worktree in its orchestration when it changes branch", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: ["a1"], mainIn: false } });
+
+    // A checkout in the linked worktree gives it a new id.
+    useWorkspaceStore.setState({
+      worktrees: useWorkspaceStore.getState().worktrees.map((w) => (w.id === "wt-linked" ? { ...w, id: "wt-linked-2" } : w)),
+    });
+    useSessionStatusStore.getState().rekeyWorktree("wt-linked", "wt-linked-2");
+
+    expect(useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-linked-2")!.workedFrom)
+      .toEqual({ worktreeId: "wt-mirror", running: true });
+  });
+
+  it("names the head's new id on the linked worktree when the head changes branch", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: [], mainIn: false } });
+    const linked = () => useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-linked")!;
+    expect(linked().workedFrom).toEqual({ worktreeId: "wt-mirror", running: false });
+
+    // A checkout in the head worktree: the worktree, its tabs and the status store follow.
+    useWorkspaceStore.setState({
+      worktrees: useWorkspaceStore.getState().worktrees.map((w) => (w.id === "wt-mirror" ? { ...w, id: "wt-mirror-2" } : w)),
+    });
+    useTabStore.getState().rekeyWorktree("wt-mirror", "wt-mirror-2");
+    useSessionStatusStore.getState().rekeyWorktree("wt-mirror", "wt-mirror-2");
+    expect(linked().workedFrom).toEqual({ worktreeId: "wt-mirror-2", running: false });
+
+    // The session list names the head by id too: a running child session follows at once.
+    useSessionStatusStore.getState().setExternalWork({ "wt-linked": { worktreeId: "wt-mirror-2", running: true } });
+    useWorkspaceStore.setState({
+      worktrees: useWorkspaceStore.getState().worktrees.map((w) => (w.id === "wt-mirror-2" ? { ...w, id: "wt-mirror-3" } : w)),
+    });
+    useTabStore.getState().rekeyWorktree("wt-mirror-2", "wt-mirror-3");
+    useSessionStatusStore.getState().rekeyWorktree("wt-mirror-2", "wt-mirror-3");
+    expect(useSessionStatusStore.getState().external).toEqual({ "wt-linked": { worktreeId: "wt-mirror-3", running: true } });
+    expect(linked().workedFrom).toEqual({ worktreeId: "wt-mirror-3", running: true });
+  });
 });
 
 describe("seenWorktrees ordering invariant", () => {

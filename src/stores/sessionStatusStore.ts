@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AgentQuestion, AgentState, WorkedFrom } from "../types";
 import { endAgentWork, type SessionLinks } from "../services/orchestrations";
+import { rekeyRecord } from "./rekeyWorktreeId";
 
 interface SessionStatusState {
   /** Per-session agent state, keyed by sessionKey (tab.id). */
@@ -18,6 +19,10 @@ interface SessionStatusState {
   setSessionLinks: (sessionKey: string, links: SessionLinks) => void;
   /** Replace the external work. A record equal to the stored one changes nothing. */
   setExternalWork: (next: Record<string, WorkedFrom>) => void;
+  /** Move a worktree's links and external work to its new id after a branch
+   *  checkout re-ids it, and rename it in the external work it is the source
+   *  of. Changes nothing when nothing names `oldId`. */
+  rekeyWorktree: (oldId: string, newId: string) => void;
 }
 
 export const useSessionStatusStore = create<SessionStatusState>((set) => ({
@@ -73,5 +78,24 @@ export const useSessionStatusStore = create<SessionStatusState>((set) => ({
           return prev !== undefined && prev.worktreeId === next[id].worktreeId && prev.running === next[id].running;
         });
       return same ? s : { external: next };
+    }),
+  rekeyWorktree: (oldId, newId) =>
+    set((s) => {
+      let links = s.links;
+      for (const [sessionKey, sessionLinks] of Object.entries(s.links)) {
+        const moved = rekeyRecord(sessionLinks, oldId, newId);
+        if (moved === sessionLinks) continue;
+        if (links === s.links) links = { ...s.links };
+        links[sessionKey] = moved;
+      }
+      let external = rekeyRecord(s.external, oldId, newId);
+      // An entry also names the worktree it is worked from: that id moves too,
+      // or the worktree leaves its orchestration until the next session list.
+      for (const [id, entry] of Object.entries(external)) {
+        if (entry.worktreeId !== oldId) continue;
+        if (external === s.external) external = { ...s.external };
+        external[id] = { ...entry, worktreeId: newId };
+      }
+      return links === s.links && external === s.external ? s : { links, external };
     }),
 }));
