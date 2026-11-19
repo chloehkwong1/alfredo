@@ -1406,6 +1406,13 @@ fn write_hooks_config(
             r#"cat > /dev/null; echo "$(date +%H:%M:%S) FIRE {state}({phase}) session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
+    // Like `cmd_phase`, but posts the first 65000 bytes of the hook's stdin as
+    // the body (the state server reads where the work ran from it).
+    let cmd_phase_with_input = |state: &str, phase: &str| -> String {
+        format!(
+            r#"INPUT=$(cat); echo "$(date +%H:%M:%S) FIRE {state}({phase}) session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then printf '%s' "$INPUT" | head -c 65000 | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+        )
+    };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
             r#"cat > /dev/null; echo "$(date +%H:%M:%S) FIRE {state} notify={reason} session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}" || echo "$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
@@ -1427,13 +1434,16 @@ fn write_hooks_config(
     // phase=toolStart so workDepth still increments and stays balanced against
     // the matching PostToolUse (which posts questionEnd for these two tools —
     // see cmd_posttooluse).
+    // Every PreToolUse also posts its stdin JSON, capped at 65000 bytes, as the
+    // request body: the state server reads where the tool call ran from it. A
+    // longer input is cut, and the status still posts.
     // `Monitor` is the second exception: it registers a background watch and
     // returns immediately, so its PreToolUse routes to busy?phase=monitorStart
     // so the frontend can set a sticky monitor-pending flag. The matching
     // PostToolUse still posts toolEnd, keeping workDepth balanced.
     let cmd_pretooluse = || -> String {
         format!(
-            r#"INPUT=$(cat); SEND=; if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; SEND=1; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then U="$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q"; if [ -n "$SEND" ]; then printf '%s' "$INPUT" | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$U"; else curl -sf --max-time 2 -o /dev/null -X POST "$U"; fi || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then U="$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q"; printf '%s' "$INPUT" | head -c 65000 | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$U" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     // PostToolUse fires for every tool → busy?phase=toolEnd, EXCEPT the two
@@ -1488,9 +1498,9 @@ fn write_hooks_config(
         // background investigation agents shows "Idle" until they finish. The
         // frontend counts subagentStart/subagentEnd into a subagentDepth and
         // suppresses the idle transition while > 0 (see sessionChannel.ts).
-        ("SubagentStart",     hook_entry(cmd_phase("busy", "subagentStart"))),
+        ("SubagentStart",     hook_entry(cmd_phase_with_input("busy", "subagentStart"))),
         // SubagentStop → busy + phase=subagentEnd (distinct phase avoids bare-busy suppression)
-        ("SubagentStop",      hook_entry(cmd_phase("busy", "subagentEnd"))),
+        ("SubagentStop",      hook_entry(cmd_phase_with_input("busy", "subagentEnd"))),
         // PermissionRequest → waitingForInput + notify input
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
         // PermissionDenied → busy + phase=toolEnd. Auto-mode-only hook: only fires
@@ -2633,23 +2643,19 @@ mod tests {
             cmd.contains("ExitPlanMode"),
             "PreToolUse must branch on ExitPlanMode; got: {cmd}"
         );
-        // Only the question branch posts the tool JSON as the request body.
+        // Every tool call posts its input, capped, as the request body: the
+        // state server reads where the work ran from it.
         assert!(
             cmd.contains("--data-binary @-"),
-            "PreToolUse must post the hook body for AskUserQuestion; got: {cmd}"
+            "PreToolUse must post the hook input as the body; got: {cmd}"
         );
         assert!(
-            cmd.contains("SEND=1"),
-            "only the AskUserQuestion branch may set SEND; got: {cmd}"
-        );
-        // An inherited SEND must not make every tool call post its input.
-        assert!(
-            cmd.find("SEND=;").is_some_and(|i| i < cmd.find("SEND=1").unwrap()),
-            "SEND must be initialised before the question branch sets it; got: {cmd}"
+            cmd.contains("head -c 65000"),
+            "PreToolUse must cap the forwarded input; got: {cmd}"
         );
         assert!(
-            cmd.contains("else curl -sf"),
-            "body-less curl path must remain; got: {cmd}"
+            !cmd.contains("SEND"),
+            "every PreToolUse forwards its input now; got: {cmd}"
         );
         // Every other tool still posts busy?phase=toolStart (depth +1, balanced
         // by the matching PostToolUse toolEnd).
@@ -2773,6 +2779,143 @@ mod tests {
             cmd.contains("/busy?phase=subagentStart"),
             "SubagentStart must post busy?phase=subagentStart; got: {cmd}"
         );
+        assert!(
+            cmd.contains("head -c 65000") && cmd.contains("--data-binary @-"),
+            "SubagentStart must forward capped input; got: {cmd}"
+        );
+    }
+
+    /// SubagentStop forwards its input too, so the state server can read where
+    /// the sub-agent worked.
+    #[test]
+    fn subagent_stop_hook_posts_busy_subagent_end() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents =
+            std::fs::read_to_string(worktree.join(".claude/settings.local.json")).expect("read");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+
+        let cmd = config["hooks"]["SubagentStop"]
+            .as_array()
+            .expect("SubagentStop array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("SubagentStop command");
+
+        assert!(
+            cmd.contains("/busy?phase=subagentEnd"),
+            "SubagentStop must post busy?phase=subagentEnd; got: {cmd}"
+        );
+        assert!(
+            cmd.contains("head -c 65000") && cmd.contains("--data-binary @-"),
+            "SubagentStop must forward capped input; got: {cmd}"
+        );
+    }
+
+    /// Runs the generated PreToolUse command with a fake `curl` first on PATH.
+    #[cfg(unix)]
+    #[test]
+    fn pretooluse_hook_forwards_capped_input() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::{Command, Stdio};
+
+        let session = format!("forwardcap-{}", std::process::id());
+        let pid_file = format!("/tmp/alfredo-claude-{session}.pid");
+        // Makes `alfredo_nested` stop at this test process instead of walking
+        // on to a `claude -p` ancestor of the runner. Removed even on panic.
+        struct RemoveOnDrop(String);
+        impl Drop for RemoveOnDrop {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        std::fs::write(&pid_file, std::process::id().to_string()).unwrap();
+        let _cleanup = RemoveOnDrop(pid_file);
+
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+        let config: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(worktree.join(".claude/settings.local.json")).unwrap(),
+        )
+        .unwrap();
+        let cmd = config["hooks"]["PreToolUse"]
+            .as_array()
+            .expect("PreToolUse array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("PreToolUse command")
+            .to_string();
+
+        let bin = tmp.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let curl = bin.join("curl");
+        std::fs::write(
+            &curl,
+            "#!/bin/sh\ncat > \"$HOOK_TEST_BODY\"\nprintf '%s\\n' \"$@\" > \"$HOOK_TEST_ARGS\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&curl, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let body_path = tmp.path().join("body");
+        let args_path = tmp.path().join("args");
+
+        let run = |input: &[u8]| {
+            let mut child = Command::new("/bin/sh")
+                .args(["-c", &cmd])
+                .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+                .env("ALFREDO_STATE_URL", "http://127.0.0.1:1")
+                .env("ALFREDO_SESSION_ID", &session)
+                .env("ALFREDO_WORKTREE_ID", "owner/wt")
+                .env("HOOK_TEST_BODY", &body_path)
+                .env("HOOK_TEST_ARGS", &args_path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut stdin = child.stdin.take().unwrap();
+            let input = input.to_vec();
+            let writer = std::thread::spawn(move || {
+                let _ = stdin.write_all(&input);
+            });
+            let output = child.wait_with_output().unwrap();
+            writer.join().unwrap();
+            output
+        };
+
+        // Case 1: a small Edit input arrives byte for byte.
+        let edit = format!(
+            "{{\"tool_name\":\"Edit\",\"cwd\":\"/w\",\"tool_input\":{{\"file_path\":\"/w/a.rs\",\"note\":\"{}\"}}}}",
+            "n".repeat(220)
+        );
+        let output = run(edit.as_bytes());
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"{}\n");
+        assert_eq!(std::fs::read(&body_path).unwrap(), edit.as_bytes());
+        let args = std::fs::read_to_string(&args_path).unwrap();
+        assert!(
+            args.contains(&format!(
+                "http://127.0.0.1:1/agent-state/{session}/owner/wt/busy?phase=toolStart\n"
+            )),
+            "unexpected curl args: {args}"
+        );
+
+        // Case 2: an oversized Write input is cut to 65000 bytes, still posts.
+        let write = format!(
+            "{{\"tool_name\":\"Write\",\"tool_input\":{{\"content\":\"{}\"}}}}",
+            "x".repeat(200_000)
+        );
+        let output = run(write.as_bytes());
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"{}\n");
+        assert_eq!(std::fs::read(&body_path).unwrap().len(), 65000);
     }
 
     /// Boot cleanup must skip stripping alfredo hooks from a settings file
