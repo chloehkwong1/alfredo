@@ -707,11 +707,19 @@ describe("statusMirror", () => {
     // (guarded by a module-level `started` flag) — calling it every test is
     // safe; subscriptions registered by the first call drive subsequent syncs.
     useTabStore.getState().clearStore();
-    useSessionStatusStore.setState({ statuses: {}, questions: {} });
+    useSessionStatusStore.setState({ statuses: {}, questions: {}, links: {}, external: {} });
     useWorkspaceStore.setState({
-      worktrees: [{ id: "wt-mirror", agentStatus: "notRunning", staleBusy: false } as any],
+      worktrees: [
+        { id: "wt-mirror", path: "/wt/a", agentStatus: "notRunning", staleBusy: false } as any,
+        { id: "wt-linked", path: "/wt/b", agentStatus: "notRunning", staleBusy: false } as any,
+      ],
     });
     startStatusMirror();
+  });
+
+  afterEach(() => {
+    // Links outlive a test otherwise: the other blocks reset `statuses` only.
+    useSessionStatusStore.setState({ links: {}, external: {} });
   });
 
   it("aggregates highest-priority status across agent tabs", () => {
@@ -804,6 +812,80 @@ describe("statusMirror", () => {
     });
 
     expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+
+  it("projects running work onto the linked worktree and leaves its agentStatus alone", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: ["a1"], mainIn: false } });
+
+    const linked = useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-linked")!;
+    expect(linked.workedFrom).toEqual({ worktreeId: "wt-mirror", running: true });
+    expect(linked.agentStatus).toBe("notRunning");
+  });
+
+  it("ends sub-agent work when the session goes idle", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: ["a1"], mainIn: false } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "idle");
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy"); // a lost SubagentStop must not come back
+
+    expect(useSessionStatusStore.getState().links[tab.id]).toEqual({ "wt-linked": { agentIds: [], mainIn: false } });
+    expect(useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-linked")!.workedFrom)
+      .toEqual({ worktreeId: "wt-mirror", running: false });
+  });
+
+  it("does not touch the worktree when nothing changed", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    const links = { "wt-linked": { agentIds: ["a1"], mainIn: false } };
+    useSessionStatusStore.getState().setSessionLinks(tab.id, links);
+    const before = useWorkspaceStore.getState().worktrees;
+    const notified = vi.fn();
+    const stop = useSessionStatusStore.subscribe(notified);
+
+    useSessionStatusStore.getState().setSessionLinks(tab.id, links);
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: ["a1"], mainIn: false } });
+    stop();
+
+    expect(notified).toHaveBeenCalledTimes(1); // only the second call stored a new object
+    expect(useWorkspaceStore.getState().worktrees).toBe(before); // and the mirror wrote nothing
+  });
+
+  it("writes each worktree once when a session's status flips", () => {
+    const tab = makeAgentTab("wt-mirror:claude:aaa");
+    useTabStore.setState({ tabs: { "wt-mirror": [tab] }, activeTabId: { "wt-mirror": tab.id } });
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    useSessionStatusStore.getState().setSessionLinks(tab.id, { "wt-linked": { agentIds: [], mainIn: true } });
+    const { updateWorktree } = useWorkspaceStore.getState();
+    const written: string[] = [];
+    useWorkspaceStore.setState({
+      updateWorktree: (id, patch) => {
+        written.push(id);
+        updateWorktree(id, patch);
+      },
+    });
+
+    try {
+      useSessionStatusStore.getState().setSessionStatus(tab.id, "idle");
+    } finally {
+      useWorkspaceStore.setState({ updateWorktree });
+    }
+
+    const [mirror, linked] = useWorkspaceStore.getState().worktrees;
+    expect(mirror.agentStatus).toBe("idle");
+    expect(linked.workedFrom).toEqual({ worktreeId: "wt-mirror", running: false });
+    expect(written).toEqual(["wt-mirror", "wt-linked"]);
+  });
+
+  it("drops a session's links when its status is cleared", () => {
+    useSessionStatusStore.getState().setSessionLinks("k", { "wt-linked": { agentIds: [], mainIn: true } });
+    useSessionStatusStore.getState().clearSessionStatus("k");
+    expect(useSessionStatusStore.getState().links["k"]).toBeUndefined();
   });
 });
 

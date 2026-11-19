@@ -7,6 +7,7 @@ import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useTabStore } from "../stores/tabStore";
 import type { ManagedSession } from "./sessionTypes";
 import { stripClearScrollback } from "./terminalFactory";
+import { applyActivityToLinks, type SessionLinks } from "./orchestrations";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -16,6 +17,9 @@ export const AGENT_TYPE_MAP: Record<string, string> = {
   codex: "codex",
   gemini: "geminiCli",
 };
+
+/** The links of a session that has none, so such a session never allocates. */
+const NO_LINKS: SessionLinks = {};
 
 // ── Reconciler tuning ─────────────────────────────────────────
 
@@ -549,7 +553,7 @@ export function createSessionChannel(
         break;
       }
       case "hookAgentState": {
-        const { state, notify, phase, question } = event.data;
+        const { state, notify, phase, question, activity } = event.data;
         const hookDesc = `${state}${phase !== "none" ? `(${phase})` : ""}`;
         // Diagnostic: log hook arrival with delta since last turnEnd. Helps
         // identify stragglers (e.g. busy(toolEnd) arriving seconds after
@@ -593,6 +597,15 @@ export function createSessionChannel(
           const nextQuestion = applyQuestion(statusStore.questions[sessionKey] ?? null, state, phase, question);
           if (nextQuestion) statusStore.setSessionQuestion(sessionKey, nextQuestion);
           else statusStore.clearSessionQuestion(sessionKey);
+        }
+        // Links to the other worktrees this session works in, same
+        // pre-suppression line. The activity holds file paths — never include
+        // it in a log line.
+        {
+          const statusStore = useSessionStatusStore.getState();
+          const prevLinks = statusStore.links[sessionKey] ?? NO_LINKS;
+          const nextLinks = applyActivityToLinks(prevLinks, worktreeId, activity, phase, useWorkspaceStore.getState().worktrees);
+          if (nextLinks !== prevLinks) statusStore.setSessionLinks(sessionKey, nextLinks);
         }
         // Record subagent activity (start OR end) before any suppression break.
         // SubagentStop is reliable where SubagentStart is not, so subagentEnd is
