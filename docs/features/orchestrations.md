@@ -25,8 +25,11 @@ list updates as soon as you save; no restart.
 [worktree notes](external-worktrees.md)
 have the same `orchestration` form an orchestration with that name.
 They appear in **Your turn** with no rule. The item is the note's
-`label`, or the branch when the note has no label. A worktree with a
-note that also matches a rule shows once, with the note's names. A rule
+`label`, or the branch when the note has no label. A worktree whose
+note names an orchestration and that also matches a rule shows once,
+with the note's names. A note with only a `label` renames the sidebar
+row; under a rule, **Your turn** still shows the branch after the
+prefix. A rule
 with the same name as a note orchestration adds its other worktrees to
 it, except those a note puts in another orchestration.
 
