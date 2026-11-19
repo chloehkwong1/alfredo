@@ -1195,9 +1195,11 @@ fn classify_orphan(alive: bool, comm: SessionCommKind, ppid: Option<i32>) -> Orp
     }
 }
 
-/// Pid of each Alfredo terminal session's `claude` process, read from the
-/// `alfredo-claude-<session id>.pid` files in `dir`: pid -> session id.
-/// Unreadable and non-numeric files are skipped.
+/// Pid of each Alfredo terminal tab's PTY child (an agent, or the shell of a
+/// shell tab), read from the `alfredo-claude-<session id>.pid` files in `dir`:
+/// pid -> session id. Unreadable and non-numeric files are skipped, and so is
+/// a file that holds 0 or 1: no tab runs as either, and as an owner pid 1
+/// would claim almost every process.
 pub(crate) fn session_pids_in(dir: &std::path::Path) -> HashMap<u32, String> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return HashMap::new();
@@ -1213,7 +1215,7 @@ pub(crate) fn session_pids_in(dir: &std::path::Path) -> HashMap<u32, String> {
                 .strip_suffix(".pid")?
                 .to_string();
             let pid = std::fs::read_to_string(&path).ok()?.trim().parse::<u32>().ok()?;
-            Some((pid, session_id))
+            (pid > 1).then_some((pid, session_id))
         })
         .collect()
 }
@@ -3086,6 +3088,9 @@ mod tests {
         std::fs::write(tmp.path().join("alfredo-claude-s1.pid"), "123\n").unwrap();
         std::fs::write(tmp.path().join("alfredo-claude-s2.pid"), "not-a-pid").unwrap();
         std::fs::write(tmp.path().join("alfredo-claude-s3.worktree"), "/some/path").unwrap();
+        // A corrupt file holding 0 or 1 would own almost every listed session.
+        std::fs::write(tmp.path().join("alfredo-claude-s4.pid"), "1\n").unwrap();
+        std::fs::write(tmp.path().join("alfredo-claude-s5.pid"), "0").unwrap();
         std::fs::write(tmp.path().join("other.pid"), "456").unwrap();
         assert_eq!(
             session_pids_in(tmp.path()),

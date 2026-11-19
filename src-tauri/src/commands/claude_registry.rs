@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use crate::types::AppError;
@@ -34,9 +35,9 @@ pub struct ClaudeRegistryEntry {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiting_for: Option<String>,
-    /// The Alfredo terminal session whose `claude` process this entry descends
-    /// from (or is). Set after parsing by `poll_claude_registry`; absent for
-    /// sessions started outside Alfredo.
+    /// The Alfredo terminal tab (agent or shell) whose PTY child this entry
+    /// descends from (or is). Set after parsing by `poll_claude_registry`;
+    /// absent for sessions started outside Alfredo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alfredo_session_id: Option<String>,
 }
@@ -88,7 +89,7 @@ fn find_in_path_string(path: &str, name: &str) -> Option<String> {
         .map(|cand| cand.to_string_lossy().into_owned())
 }
 
-/// Parse `ps -axo pid=,ppid=` output into child pid -> parent pid. Lines that
+/// Parse `ps -A -o pid=,ppid=` output into child pid -> parent pid. Lines that
 /// are not two numbers are skipped.
 fn parse_ps_parents(raw: &str) -> HashMap<u32, u32> {
     raw.lines()
@@ -102,9 +103,9 @@ fn parse_ps_parents(raw: &str) -> HashMap<u32, u32> {
 }
 
 /// The Alfredo session that owns `pid`: `pid` itself or the nearest ancestor
-/// named in `owners` (pid -> session id). Looks at most 32 steps up and stops
-/// at pid 0 or 1 and at a pid with no known parent, so a loop in the table
-/// cannot hang it.
+/// named in `owners` (pid -> session id). Looks at `pid` and at most 31
+/// ancestors, and stops at pid 0 or 1 and at a pid with no known parent, so a
+/// loop in the table cannot hang it.
 fn owning_session(
     pid: u32,
     parents: &HashMap<u32, u32>,
@@ -123,33 +124,56 @@ fn owning_session(
     None
 }
 
-/// Fill `alfredo_session_id` on each entry. Best effort: runs `ps` once, and
-/// not at all when no pid file exists; if `ps` cannot start, fails or times
-/// out, the entries are left as they are.
-async fn annotate_alfredo_sessions(entries: &mut [ClaudeRegistryEntry]) {
-    let owners = tokio::task::spawn_blocking(|| {
-        crate::pty_manager::session_pids_in(std::path::Path::new("/tmp"))
-    })
-    .await
-    .unwrap_or_default();
-    if owners.is_empty() {
-        return;
-    }
-    let Ok(Ok(output)) = tokio::time::timeout(
+/// Every process and its parent, from one `ps` (the POSIX form: macOS and
+/// Linux both take it). The error is the reason only: no pid, no path.
+async fn ps_parents() -> std::result::Result<HashMap<u32, u32>, String> {
+    let output = tokio::time::timeout(
         std::time::Duration::from_secs(2),
         tokio::process::Command::new("ps")
-            .args(["-axo", "pid=,ppid="])
+            .args(["-A", "-o", "pid=,ppid="])
             .kill_on_drop(true)
             .output(),
     )
     .await
-    else {
-        return;
-    };
+    .map_err(|_| "ps timed out".to_string())?
+    .map_err(|e| format!("ps did not start: {e}"))?;
     if !output.status.success() {
+        return Err(format!("ps exited {}", output.status));
+    }
+    Ok(parse_ps_parents(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// True the first time it is called on `seen`, false every time after.
+fn first_failure(seen: &AtomicBool) -> bool {
+    !seen.swap(true, Ordering::Relaxed)
+}
+
+/// Fill `alfredo_session_id` on each entry. Best effort: runs `ps` once, and
+/// not at all when no pid file exists; if the pid file scan panics, or `ps`
+/// cannot start, fails or times out, the entries are left as they are. The
+/// first such failure of an app run is logged, the later ones are not: a `ps`
+/// that always fails costs one line, not one every poll.
+async fn annotate_alfredo_sessions(entries: &mut [ClaudeRegistryEntry]) {
+    static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
+    let report = |reason: &str| {
+        if first_failure(&FAILURE_LOGGED) {
+            eprintln!("[registry] session owners not looked up (logged once per app run): {reason}");
+        }
+    };
+    let Ok(owners) = tokio::task::spawn_blocking(|| {
+        crate::pty_manager::session_pids_in(std::path::Path::new("/tmp"))
+    })
+    .await
+    else {
+        return report("the pid file scan panicked");
+    };
+    if owners.is_empty() {
         return;
     }
-    let parents = parse_ps_parents(&String::from_utf8_lossy(&output.stdout));
+    let parents = match ps_parents().await {
+        Ok(parents) => parents,
+        Err(reason) => return report(&reason),
+    };
     for entry in entries {
         entry.alfredo_session_id = owning_session(entry.pid, &parents, &owners);
     }
@@ -266,6 +290,24 @@ mod tests {
         let parents = parse_ps_parents("    1     0\n  857     1\n82208   857\n82652 82651\njunk\n");
         assert_eq!(parents.get(&82208), Some(&857));
         assert_eq!(parents.len(), 4);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn ps_parents_lists_this_process_under_its_parent() {
+        let parents = ps_parents().await.expect("ps runs");
+        assert_eq!(
+            parents.get(&std::process::id()),
+            Some(&std::os::unix::process::parent_id()),
+        );
+    }
+
+    #[test]
+    fn first_failure_is_true_once() {
+        let seen = AtomicBool::new(false);
+        assert!(first_failure(&seen));
+        assert!(!first_failure(&seen));
+        assert!(!first_failure(&seen));
     }
 
     #[test]
