@@ -32,9 +32,12 @@ import {
   stateSourceMap,
   matchRegistryEntry,
   externalWorkFromRegistry,
+  linkedWorktreesFromRegistry,
   applyRegistryCorrection,
+  NO_LINKS,
   type SessionWriter,
 } from "./sessionChannel";
+import { withQuietLink } from "./orchestrations";
 
 // Re-export for external consumers
 export type { ManagedSession } from "./sessionTypes";
@@ -702,8 +705,20 @@ export class SessionManager implements SessionWriter {
       }
     }
     const worktreeOfSession = new Map<string, string>();
-    for (const session of this.sessions.values()) {
-      if (session.sessionId) worktreeOfSession.set(session.sessionId, session.worktreeId);
+    const keyOfSession = new Map<string, string>();
+    for (const [sessionKey, session] of this.sessions.entries()) {
+      if (!session.sessionId) continue;
+      worktreeOfSession.set(session.sessionId, session.worktreeId);
+      keyOfSession.set(session.sessionId, sessionKey);
+    }
+    // A child session's worktree stays linked to the session that started it
+    // after the child leaves the list. A worktree already linked stores nothing.
+    for (const { sessionId, worktreeId } of linkedWorktreesFromRegistry(entries, worktrees, worktreeOfSession)) {
+      const sessionKey = keyOfSession.get(sessionId)!;
+      const statusStore = useSessionStatusStore.getState();
+      const prevLinks = statusStore.links[sessionKey] ?? NO_LINKS;
+      const nextLinks = withQuietLink(prevLinks, worktreeId);
+      if (nextLinks !== prevLinks) statusStore.setSessionLinks(sessionKey, nextLinks);
     }
     useSessionStatusStore
       .getState()

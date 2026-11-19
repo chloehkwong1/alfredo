@@ -299,6 +299,12 @@ export function endAgentWork(prev: SessionLinks): SessionLinks {
   return next;
 }
 
+/** Make sure a session's links have one for `worktreeId`: a missing link is
+ *  added as one that is not running. Returns `prev` itself when it has one. */
+export function withQuietLink(prev: SessionLinks, worktreeId: string): SessionLinks {
+  return prev[worktreeId] ? prev : { ...prev, [worktreeId]: { agentIds: [], mainIn: false } };
+}
+
 /** Which session works in each worktree. A running link wins, then running
  *  external work, then a link that is not running. */
 export function workedFromByWorktree(

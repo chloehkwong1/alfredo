@@ -19,7 +19,7 @@ export const AGENT_TYPE_MAP: Record<string, string> = {
 };
 
 /** The links of a session that has none, so such a session never allocates. */
-const NO_LINKS: SessionLinks = {};
+export const NO_LINKS: SessionLinks = {};
 
 // ── Reconciler tuning ─────────────────────────────────────────
 
@@ -439,6 +439,34 @@ export function externalWorkFromRegistry(
     }
   }
   return external;
+}
+
+/**
+ * The worktrees this snapshot links to an Alfredo session: one pair per
+ * `busy` or `waiting` entry that externalWorkFromRegistry gives a
+ * `worktreeId` (a child session at work in a worktree that is not its
+ * owner's own folder). `sessionId` is the owner's PTY session id, as the
+ * entry names it. The link outlives the entry: sessionManager stores it in
+ * the owner's links, where it stays after the child leaves the list.
+ * Pure function — safe to unit test.
+ */
+export function linkedWorktreesFromRegistry(
+  entries: ClaudeRegistryEntry[],
+  worktrees: Pick<Worktree, "id" | "path">[],
+  worktreeOfSession: Map<string, string>,
+): { sessionId: string; worktreeId: string }[] {
+  const linked: { sessionId: string; worktreeId: string }[] = [];
+  for (const entry of entries) {
+    if (entry.status !== "busy" && entry.status !== "waiting") continue;
+    const sessionId = entry.alfredoSessionId;
+    const owner = sessionId === undefined ? undefined : worktreeOfSession.get(sessionId);
+    if (sessionId === undefined || owner === undefined) continue;
+    if (worktrees.some((wt) => wt.id === owner && wt.path === entry.cwd)) continue;
+    for (const wt of worktrees) {
+      if (wt.path === entry.cwd) linked.push({ sessionId, worktreeId: wt.id });
+    }
+  }
+  return linked;
 }
 
 /**

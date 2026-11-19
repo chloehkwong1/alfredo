@@ -12,6 +12,7 @@ import { REGISTRY_POLL_INTERVAL_MS } from "./sessionChannel";
 import {
   applyRegistryCorrection,
   externalWorkFromRegistry,
+  linkedWorktreesFromRegistry,
   matchRegistryEntry,
   REGISTRY_TRUST_HOOK_SILENCE_MS,
 } from "./sessionChannel";
@@ -325,6 +326,47 @@ describe("externalWorkFromRegistry", () => {
   });
 });
 
+describe("linkedWorktreesFromRegistry", () => {
+  const worktrees = [{ id: "r::a", path: "/wt/a" }, { id: "r::b", path: "/wt/b" }, { id: "r::c", path: "/wt/c" }];
+  const owner = new Map([["pty-a", "r::a"]]);
+  const entry = (over: Partial<ClaudeRegistryEntry>): ClaudeRegistryEntry =>
+    ({ pid: 1, sessionId: "s", cwd: "/wt/b", kind: "interactive", status: "busy", ...over });
+
+  it("links a busy or waiting child session's worktree to the session that started it", () => {
+    expect(linkedWorktreesFromRegistry([
+      entry({ alfredoSessionId: "pty-a" }),
+      entry({ cwd: "/wt/c", status: "waiting", waitingFor: "permission prompt", alfredoSessionId: "pty-a" }),
+    ], worktrees, owner)).toEqual([
+      { sessionId: "pty-a", worktreeId: "r::b" },
+      { sessionId: "pty-a", worktreeId: "r::c" },
+    ]);
+  });
+  it("links nothing for outside sessions, unknown owners, idle sessions, unknown folders and a worktree's own session", () => {
+    expect(linkedWorktreesFromRegistry([
+      entry({}),
+      entry({ alfredoSessionId: "pty-unknown" }),
+      entry({ status: "idle", alfredoSessionId: "pty-a" }),
+      entry({ cwd: "/somewhere/else", alfredoSessionId: "pty-a" }),
+      entry({ cwd: "/wt/a", alfredoSessionId: "pty-a" }),
+    ], worktrees, owner)).toEqual([]);
+  });
+  it("links nothing for the folder's own session when two cards share its path", () => {
+    const shared = [{ id: "r", path: "/repo" }, { id: "r::main", path: "/repo" }];
+    expect(linkedWorktreesFromRegistry([entry({ cwd: "/repo", alfredoSessionId: "pty-m" })], shared, new Map([["pty-m", "r::main"]]))).toEqual([]);
+  });
+  it("links exactly the worktrees that externalWorkFromRegistry names an owner for", () => {
+    const entries = [
+      entry({ alfredoSessionId: "pty-a" }),
+      entry({ pid: 2, sessionId: "s-2" }),
+      entry({ pid: 3, sessionId: "s-3", cwd: "/wt/c" }),
+    ];
+    const owned = Object.entries(externalWorkFromRegistry(entries, worktrees, owner))
+      .filter(([, work]) => work.worktreeId !== undefined)
+      .map(([worktreeId]) => worktreeId);
+    expect(linkedWorktreesFromRegistry(entries, worktrees, owner).map((link) => link.worktreeId)).toEqual(owned);
+  });
+});
+
 describe("external work in the store", () => {
   afterEach(() => {
     useSessionStatusStore.setState({ external: {}, links: {} });
@@ -386,6 +428,65 @@ describe("external work in the store", () => {
       "r::b": { worktreeId: "r::a", running: true },
       "r::c": { running: true },
     });
+    await manager.closeAll();
+  });
+  it("keeps a child session's worktree linked after the child leaves the list", async () => {
+    const manager = new SessionManager();
+    // The links are stored under the tab id, the list names the PTY session id.
+    const s = manager.loadScrollbackOnly("tab-a", "r::a", undefined, "/wt/a");
+    s.sessionId = "pty-a";
+    useWorkspaceStore.setState({
+      worktrees: [
+        { id: "r::a", path: "/wt/a", branch: "a", name: "a" } as any,
+        { id: "r::b", path: "/wt/b", branch: "b", name: "b" } as any,
+      ],
+    });
+    const own: ClaudeRegistryEntry =
+      { pid: 1, sessionId: "s-a", cwd: "/wt/a", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" };
+    const child: ClaudeRegistryEntry =
+      { pid: 2, sessionId: "s-b", cwd: "/wt/b", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" };
+
+    manager.applyRegistrySnapshot([own, child], Date.now());
+    expect(useSessionStatusStore.getState().links).toEqual({ "tab-a": { "r::b": { agentIds: [], mainIn: false } } });
+    expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { worktreeId: "r::a", running: true } });
+
+    // The same list again stores nothing.
+    const linked = useSessionStatusStore.getState();
+    const notified = vi.fn();
+    const stop = useSessionStatusStore.subscribe(notified);
+    manager.applyRegistrySnapshot([own, child], Date.now());
+    expect(useSessionStatusStore.getState()).toBe(linked);
+    expect(notified).not.toHaveBeenCalled();
+
+    // The child stops: the running work goes, the link stays.
+    manager.applyRegistrySnapshot([own], Date.now());
+    expect(useSessionStatusStore.getState().links).toBe(linked.links);
+    expect(useSessionStatusStore.getState().external).toEqual({});
+    expect(notified).toHaveBeenCalledTimes(1); // the external work only
+
+    manager.applyRegistrySnapshot([own], Date.now());
+    stop();
+    expect(useSessionStatusStore.getState().links).toBe(linked.links);
+    expect(notified).toHaveBeenCalledTimes(1);
+    await manager.closeAll();
+  });
+  it("leaves a link the hooks already made as it is", async () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("tab-a", "r::a", undefined, "/wt/a");
+    s.sessionId = "pty-a";
+    useWorkspaceStore.setState({
+      worktrees: [
+        { id: "r::a", path: "/wt/a", branch: "a", name: "a" } as any,
+        { id: "r::b", path: "/wt/b", branch: "b", name: "b" } as any,
+      ],
+    });
+    useSessionStatusStore.getState().setSessionLinks("tab-a", { "r::b": { agentIds: ["a1"], mainIn: false } });
+    const before = useSessionStatusStore.getState().links;
+    manager.applyRegistrySnapshot(
+      [{ pid: 2, sessionId: "s-b", cwd: "/wt/b", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" }],
+      Date.now(),
+    );
+    expect(useSessionStatusStore.getState().links).toBe(before);
     await manager.closeAll();
   });
   it("clears external work when the session list fails three times in a row", async () => {

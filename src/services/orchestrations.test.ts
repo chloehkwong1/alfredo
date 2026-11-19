@@ -11,6 +11,7 @@ import {
   worktreeForPath,
   applyActivityToLinks,
   endAgentWork,
+  withQuietLink,
   workedFromByWorktree,
   orchestrationsFromLinks,
   type Orchestration,
@@ -607,6 +608,22 @@ describe("endAgentWork", () => {
     expect(endAgentWork(quiet)).toBe(quiet);
     const empty: SessionLinks = {};
     expect(endAgentWork(empty)).toBe(empty);
+  });
+});
+
+describe("withQuietLink", () => {
+  it("adds a link that is not running for a worktree with none", () => {
+    const prev = { "r::b": { agentIds: ["a1"], mainIn: false } };
+    expect(withQuietLink(prev, "r::c")).toEqual({
+      "r::b": { agentIds: ["a1"], mainIn: false },
+      "r::c": { agentIds: [], mainIn: false },
+    });
+  });
+  it("returns the same object when the worktree already has a link", () => {
+    const running = { "r::b": { agentIds: ["a1"], mainIn: true } };
+    expect(withQuietLink(running, "r::b")).toBe(running);
+    const quiet = { "r::b": { agentIds: [], mainIn: false } };
+    expect(withQuietLink(quiet, "r::b")).toBe(quiet);
   });
 });
 
