@@ -220,6 +220,8 @@ export class SessionManager implements SessionWriter {
 
   /** Stop the global reconciler. Called from closeAll and from closeSession when the session map empties. */
   private stopReconciler(): void {
+    // No tick is left to clear what the session list last said.
+    useSessionStatusStore.getState().setExternalWork({});
     if (this.stopReconcileTimer === null) return;
     this.stopReconcileTimer();
     this.stopReconcileTimer = null;
@@ -582,21 +584,27 @@ export class SessionManager implements SessionWriter {
       });
   }
 
+  /** The registry poll's gate: at least one session has live hooks and a
+   *  running PTY. */
+  private hasLiveSession(): boolean {
+    for (const s of this.sessions.values()) {
+      if (s.hooksActive && !s.ptyExited) return true;
+    }
+    return false;
+  }
+
   /** Kick off a registry poll when due. Fire-and-forget from the 500ms
    *  reconcile tick — never blocks it. */
   private maybePollRegistry(now: number): void {
     if (this.registryPollInFlight) return;
-    const focused = useAttentionStore.getState().focused;
-    if (now - this.lastRegistryPollAt < registryPollDelay(this.registryPollFailures, focused)) return;
-    let anyLive = false;
-    for (const s of this.sessions.values()) {
-      if (s.hooksActive && !s.ptyExited) { anyLive = true; break; }
-    }
-    if (!anyLive) {
+    if (!this.hasLiveSession()) {
       // Nothing polls the list now, so what it last said would go stale.
+      // Checked before the cadence, so the clear waits one tick, not one poll.
       useSessionStatusStore.getState().setExternalWork({});
       return;
     }
+    const focused = useAttentionStore.getState().focused;
+    if (now - this.lastRegistryPollAt < registryPollDelay(this.registryPollFailures, focused)) return;
     this.lastRegistryPollAt = now;
     this.registryPollInFlight = true;
     pollClaudeRegistry()
@@ -607,6 +615,12 @@ export class SessionManager implements SessionWriter {
           debugLog(msg).catch(() => {});
         }
         this.registryPollFailures = 0;
+        if (!this.hasLiveSession()) {
+          // The last live session ended while the poll ran. The list may still
+          // name its process, and there is no session left to correct.
+          useSessionStatusStore.getState().setExternalWork({});
+          return;
+        }
         this.applyRegistrySnapshot(entries, Date.now());
       })
       .catch((e) => {

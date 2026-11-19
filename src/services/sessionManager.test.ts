@@ -408,6 +408,81 @@ describe("external work in the store", () => {
     warn.mockRestore();
     await manager.closeAll();
   });
+  it("clears external work when the last session closes", async () => {
+    const manager = new SessionManager();
+    manager.loadScrollbackOnly("r::a", "r::a", undefined, "/wt/a");
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    await manager.closeSession("r::a");
+    expect(useSessionStatusStore.getState().external).toEqual({});
+  });
+  it("clears external work with no live session even when no poll is due", () => {
+    const manager = new SessionManager();
+    const now = Date.now();
+    (manager as any).lastRegistryPollAt = now;
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    (manager as any).maybePollRegistry(now);
+    expect(useSessionStatusStore.getState().external).toEqual({});
+  });
+  it("starts no poll before one is due while a session is live, and keeps external work", async () => {
+    const manager = new SessionManager();
+    manager.loadScrollbackOnly("r::a", "r::a", undefined, "/wt/a").hooksActive = true;
+    const now = Date.now();
+    (manager as any).lastRegistryPollAt = now;
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    (manager as any).maybePollRegistry(now);
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("poll_claude_registry");
+    expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { running: true } });
+    await manager.closeAll();
+  });
+
+  describe("a session list that arrives late", () => {
+    const worktreeA = { id: "r::a", path: "/wt/a", branch: "a", name: "a" } as any;
+    const worktreeB = { id: "r::b", path: "/wt/b", branch: "b", name: "b" } as any;
+    const ownEntry: ClaudeRegistryEntry =
+      { pid: 1, sessionId: "s-a", cwd: "/wt/a", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" };
+    const outsideEntry: ClaudeRegistryEntry =
+      { pid: 2, sessionId: "s-b", cwd: "/wt/b", kind: "interactive", status: "busy" };
+
+    /** A manager with one live session in r::a and a poll in flight; `deliver` resolves the poll. */
+    const pollInFlight = () => {
+      const manager = new SessionManager();
+      const live = manager.loadScrollbackOnly("r::a", "r::a", undefined, "/wt/a");
+      live.sessionId = "pty-a";
+      live.hooksActive = true;
+      useWorkspaceStore.setState({ worktrees: [worktreeA, worktreeB] });
+      let resolvePoll!: (entries: ClaudeRegistryEntry[]) => void;
+      vi.mocked(invoke).mockImplementation((cmd) =>
+        cmd === "poll_claude_registry" ? new Promise((resolve) => { resolvePoll = resolve; }) : Promise.resolve(),
+      );
+      (manager as any).maybePollRegistry(Date.now());
+      const deliver = async (entries: ClaudeRegistryEntry[]) => {
+        resolvePoll(entries);
+        await vi.waitFor(() => expect((manager as any).registryPollInFlight).toBe(false));
+      };
+      return { manager, deliver };
+    };
+
+    it("is stored while a session is live", async () => {
+      const { manager, deliver } = pollInFlight();
+      await deliver([ownEntry, outsideEntry]);
+      expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { running: true } });
+      await manager.closeAll();
+    });
+    it("is dropped when the last session closed meanwhile", async () => {
+      const { manager, deliver } = pollInFlight();
+      await manager.closeSession("r::a");
+      await deliver([ownEntry, outsideEntry]);
+      expect(useSessionStatusStore.getState().external).toEqual({});
+    });
+    it("is dropped when only a session that is not live is left", async () => {
+      const { manager, deliver } = pollInFlight();
+      manager.loadScrollbackOnly("r::b", "r::b", undefined, "/wt/b");
+      await manager.closeSession("r::a");
+      await deliver([ownEntry, outsideEntry]);
+      expect(useSessionStatusStore.getState().external).toEqual({});
+      await manager.closeAll();
+    });
+  });
 });
 
 describe("applyRegistryCorrection", () => {
