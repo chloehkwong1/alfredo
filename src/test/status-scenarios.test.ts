@@ -1330,6 +1330,46 @@ describe("createSessionChannel wires workDepth updates", () => {
 
     expect(session.workDepth).toBe(1);
   });
+
+  it("stores a link for a sub-agent that works in another worktree, once", () => {
+    const sessionKey = "wt-wire-a:main";
+    useWorkspaceStore.setState({
+      worktrees: [
+        { id: "wt-wire-a", path: "/wire/a", agentStatus: "notRunning", staleBusy: false } as any,
+        { id: "wt-wire-b", path: "/wire/b", agentStatus: "notRunning", staleBusy: false } as any,
+      ],
+    });
+    // The handler reads the worktree from the session, not from the argument.
+    const session = makeFakeSession({ agentState: "busy", worktreeId: "wt-wire-a" });
+    const fakeWriter = {
+      scheduleWrite: () => {},
+      appendToBuffer: () => {},
+    };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-wire-a", sessionKey);
+    const activity = { cwd: "/wire/b/src", agentId: "a1" };
+
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolStart", notify: "none", activity },
+    });
+    const stored = useSessionStatusStore.getState().links[sessionKey];
+    const notified = vi.fn();
+    const stop = useSessionStatusStore.subscribe(notified);
+
+    // The same sub-agent in the same worktree: nothing to store.
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolEnd", notify: "none", activity },
+    });
+    stop();
+    const after = useSessionStatusStore.getState().links[sessionKey];
+    useSessionStatusStore.getState().clearSessionStatus(sessionKey);
+    useWorkspaceStore.setState({ worktrees: [] });
+
+    expect(stored).toEqual({ "wt-wire-b": { agentIds: ["a1"], mainIn: false } });
+    expect(after).toBe(stored);
+    expect(notified).not.toHaveBeenCalled();
+  });
 });
 
 describe("createSessionChannel background-subagent (SubagentStart) handling", () => {

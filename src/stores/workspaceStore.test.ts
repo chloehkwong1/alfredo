@@ -86,6 +86,17 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.question).toEqual({ text: "Which copy?", header: "Error copy" });
   });
 
+  it("keeps workedFrom, which the backend list never has", () => {
+    const store = useWorkspaceStore;
+    const workedFrom = { worktreeId: "wt-2", running: true };
+    store.setState({ worktrees: [makeWorktree({ workedFrom })] });
+
+    store.getState().setWorktrees([makeWorktree()]);
+
+    // Carried over as it is: otherwise statusMirror has to write it back after every refresh.
+    expect(store.getState().worktrees.find((w) => w.id === "wt-1")!.workedFrom).toBe(workedFrom);
+  });
+
   it("preserves enriched state when a branch switch changes the worktree id", () => {
     const store = useWorkspaceStore;
     // The backend derives ids as `${repoPath}::${branch}` (git_manager.rs

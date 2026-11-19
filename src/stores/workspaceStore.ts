@@ -370,6 +370,10 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         column: old.column,
         agentStatus: old.agentStatus,
         question: old.question,
+        // Frontend-only, written by statusMirror — listWorktrees never has it.
+        // Without this a refresh blanks it and the mirror writes it back, so
+        // the worktree changes twice per refresh.
+        workedFrom: old.workedFrom,
         channelAlive: old.channelAlive,
         staleBusy: old.staleBusy,
         // Frontend-only count written by the reconciler — listWorktrees has no
