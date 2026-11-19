@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 import {
   shouldAcceptDetectorState,
   SessionManager,
@@ -10,6 +11,7 @@ import {
 import { REGISTRY_POLL_INTERVAL_MS } from "./sessionChannel";
 import {
   applyRegistryCorrection,
+  externalWorkFromRegistry,
   matchRegistryEntry,
   REGISTRY_TRUST_HOOK_SILENCE_MS,
 } from "./sessionChannel";
@@ -278,6 +280,133 @@ describe("matchRegistryEntry", () => {
 
   it("returns null when nothing matches", () => {
     expect(matchRegistryEntry([entry()], "s-x", "/wt/z")).toBeNull();
+  });
+});
+
+describe("externalWorkFromRegistry", () => {
+  const worktrees = [{ id: "r::a", path: "/wt/a" }, { id: "r::b", path: "/wt/b" }, { id: "r::c", path: "/wt/c" }];
+  const owner = new Map([["pty-a", "r::a"]]);
+  const entry = (over: Partial<ClaudeRegistryEntry>): ClaudeRegistryEntry =>
+    ({ pid: 1, sessionId: "s", cwd: "/wt/b", kind: "interactive", status: "busy", ...over });
+
+  it("links a child session to the worktree of the session that started it", () => {
+    expect(externalWorkFromRegistry([entry({ alfredoSessionId: "pty-a" })], worktrees, owner))
+      .toEqual({ "r::b": { worktreeId: "r::a", running: true } });
+  });
+  it("shows a session with no Alfredo ancestor as outside work", () => {
+    expect(externalWorkFromRegistry([entry({ cwd: "/wt/c" })], worktrees, owner)).toEqual({ "r::c": { running: true } });
+  });
+  it("shows a session whose Alfredo ancestor is not a known session as outside work", () => {
+    // A shell tab's pid file, or one written by another Alfredo on this machine.
+    expect(externalWorkFromRegistry([entry({ alfredoSessionId: "pty-unknown" })], worktrees, owner))
+      .toEqual({ "r::b": { running: true } });
+  });
+  it("skips a worktree's own session, idle sessions and unknown folders", () => {
+    expect(externalWorkFromRegistry([
+      entry({ cwd: "/wt/a", alfredoSessionId: "pty-a" }),
+      entry({ status: "idle" }),
+      entry({ cwd: "/somewhere/else" }),
+    ], worktrees, owner)).toEqual({});
+  });
+  it("skips the folder's own session when two cards share its path", () => {
+    const shared = [{ id: "r", path: "/repo" }, { id: "r::main", path: "/repo" }];
+    expect(externalWorkFromRegistry([entry({ cwd: "/repo", alfredoSessionId: "pty-m" })], shared, new Map([["pty-m", "r::main"]]))).toEqual({});
+  });
+  it("counts a waiting session as running", () => {
+    expect(externalWorkFromRegistry([entry({ status: "waiting", waitingFor: "permission prompt" })], worktrees, owner))
+      .toEqual({ "r::b": { running: true } });
+  });
+  it("prefers the entry that names a worktree when two sessions work in one worktree", () => {
+    const linked = entry({ alfredoSessionId: "pty-a" });
+    const outside = entry({ pid: 2, sessionId: "s-2" });
+    const expected = { "r::b": { worktreeId: "r::a", running: true } };
+    expect(externalWorkFromRegistry([linked, outside], worktrees, owner)).toEqual(expected);
+    expect(externalWorkFromRegistry([outside, linked], worktrees, owner)).toEqual(expected);
+  });
+});
+
+describe("external work in the store", () => {
+  afterEach(() => {
+    useSessionStatusStore.setState({ external: {} });
+    useWorkspaceStore.setState({ worktrees: [] });
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockImplementation(() => Promise.resolve());
+  });
+
+  it("keeps the same object for an equal snapshot", () => {
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { worktreeId: "r::a", running: true } });
+    const before = useSessionStatusStore.getState().external;
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { worktreeId: "r::a", running: true } });
+    expect(useSessionStatusStore.getState().external).toBe(before);
+  });
+  it("does not notify subscribers for an equal snapshot, empty included", () => {
+    const listener = vi.fn();
+    const unsubscribe = useSessionStatusStore.subscribe(listener);
+    const empty = useSessionStatusStore.getState().external;
+    useSessionStatusStore.getState().setExternalWork({});
+    expect(useSessionStatusStore.getState().external).toBe(empty);
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    unsubscribe();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+  it("replaces the record when an entry changes or leaves", () => {
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true }, "r::c": { running: true } });
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { worktreeId: "r::a", running: true }, "r::c": { running: true } });
+    expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { worktreeId: "r::a", running: true }, "r::c": { running: true } });
+    useSessionStatusStore.getState().setExternalWork({ "r::c": { running: true } });
+    expect(useSessionStatusStore.getState().external).toEqual({ "r::c": { running: true } });
+  });
+  it("clears external work when no session is live", () => {
+    const manager = new SessionManager();
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    (manager as any).maybePollRegistry(Date.now());
+    expect(useSessionStatusStore.getState().external).toEqual({});
+  });
+  it("stores the external work of each registry snapshot", async () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("r::a", "r::a", undefined, "/wt/a");
+    s.sessionId = "pty-a";
+    useWorkspaceStore.setState({
+      worktrees: [
+        { id: "r::a", path: "/wt/a", branch: "a", name: "a" } as any,
+        { id: "r::b", path: "/wt/b", branch: "b", name: "b" } as any,
+        { id: "r::c", path: "/wt/c", branch: "c", name: "c" } as any,
+      ],
+    });
+    manager.applyRegistrySnapshot(
+      [
+        { pid: 1, sessionId: "s-a", cwd: "/wt/a", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" },
+        { pid: 2, sessionId: "s-b", cwd: "/wt/b", kind: "interactive", status: "busy", alfredoSessionId: "pty-a" },
+        { pid: 3, sessionId: "s-c", cwd: "/wt/c", kind: "interactive", status: "waiting", waitingFor: "permission prompt" },
+      ],
+      Date.now(),
+    );
+    expect(useSessionStatusStore.getState().external).toEqual({
+      "r::b": { worktreeId: "r::a", running: true },
+      "r::c": { running: true },
+    });
+    await manager.closeAll();
+  });
+  it("clears external work when the session list fails three times in a row", async () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("r::a", "r::a", undefined, "/wt/a");
+    s.hooksActive = true;
+    useSessionStatusStore.getState().setExternalWork({ "r::b": { running: true } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(invoke).mockImplementation((cmd) =>
+      cmd === "poll_claude_registry" ? Promise.reject(new Error("no claude")) : Promise.resolve(),
+    );
+    for (const failures of [1, 2]) {
+      (manager as any).registryPollFailures = failures;
+      (manager as any).lastRegistryPollAt = 0;
+      (manager as any).maybePollRegistry(Date.now());
+      await vi.waitFor(() => expect((manager as any).registryPollInFlight).toBe(false));
+      if (failures === 1) expect(useSessionStatusStore.getState().external).toEqual({ "r::b": { running: true } });
+    }
+    expect(useSessionStatusStore.getState().external).toEqual({});
+    warn.mockRestore();
+    await manager.closeAll();
   });
 });
 

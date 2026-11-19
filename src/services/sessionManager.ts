@@ -31,6 +31,7 @@ import {
   hasWorkInFlight,
   stateSourceMap,
   matchRegistryEntry,
+  externalWorkFromRegistry,
   applyRegistryCorrection,
   type SessionWriter,
 } from "./sessionChannel";
@@ -591,7 +592,11 @@ export class SessionManager implements SessionWriter {
     for (const s of this.sessions.values()) {
       if (s.hooksActive && !s.ptyExited) { anyLive = true; break; }
     }
-    if (!anyLive) return;
+    if (!anyLive) {
+      // Nothing polls the list now, so what it last said would go stale.
+      useSessionStatusStore.getState().setExternalWork({});
+      return;
+    }
     this.lastRegistryPollAt = now;
     this.registryPollInFlight = true;
     pollClaudeRegistry()
@@ -610,6 +615,8 @@ export class SessionManager implements SessionWriter {
           const msg = `[registry] 3 consecutive poll failures, backing off (up to ${REGISTRY_POLL_BACKOFF_MAX_MS / 60_000}min): ${e}`;
           console.warn(msg);
           debugLog(msg).catch(() => {});
+          // The list is out of reach for now: what it last said may be stale.
+          useSessionStatusStore.getState().setExternalWork({});
         }
       })
       .finally(() => {
@@ -680,6 +687,13 @@ export class SessionManager implements SessionWriter {
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "waitingForInput");
       }
     }
+    const worktreeOfSession = new Map<string, string>();
+    for (const session of this.sessions.values()) {
+      if (session.sessionId) worktreeOfSession.set(session.sessionId, session.worktreeId);
+    }
+    useSessionStatusStore
+      .getState()
+      .setExternalWork(externalWorkFromRegistry(entries, worktrees, worktreeOfSession));
   }
 
   /**

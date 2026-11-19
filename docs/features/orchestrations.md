@@ -54,6 +54,11 @@ When the work stops the row says "Not running" again. It never turns
 to "Done" and it adds nothing to the dock badge: the session's own
 row tells you when the session finishes.
 
+A Claude Code session that Alfredo did not start, for example one you
+start in a terminal outside Alfredo, shows on its worktree's row as
+**Running outside Alfredo**. These sessions show only while at least
+one Claude Code session in Alfredo is alive.
+
 The session's worktree and the worktrees of the same repo that it
 works in form an orchestration. It is named after the session's
 worktree: the name you gave the row, or its note's `label`, or its

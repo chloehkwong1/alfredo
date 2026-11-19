@@ -1,4 +1,4 @@
-import type { AgentQuestion, ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
+import type { AgentQuestion, ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, WorkedFrom, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
@@ -409,6 +409,36 @@ export function matchRegistryEntry(
     if (byCwd.length === 1) return byCwd[0];
   }
   return null;
+}
+
+/**
+ * Work in each worktree by a listed Claude session that is not the folder's
+ * own, keyed by worktree id. Only `busy` and `waiting` entries count, joined
+ * to a worktree by exact cwd (as in matchRegistryEntry). The owner is the
+ * worktree of the Alfredo session the process descends from: an entry in its
+ * owner's folder is that folder's own session and is skipped (paths are
+ * compared, not ids: a branch-mode card and a worktree can share one path);
+ * an owner elsewhere gives `worktreeId`; no known owner (a session Alfredo
+ * did not start, or a pid file of another Alfredo) gives none. With two
+ * entries for one worktree, one that names a worktree wins.
+ * Pure function, a fresh object on every call — safe to unit test.
+ */
+export function externalWorkFromRegistry(
+  entries: ClaudeRegistryEntry[],
+  worktrees: Pick<Worktree, "id" | "path">[],
+  worktreeOfSession: Map<string, string>,
+): Record<string, WorkedFrom> {
+  const external: Record<string, WorkedFrom> = {};
+  for (const entry of entries) {
+    if (entry.status !== "busy" && entry.status !== "waiting") continue;
+    const owner = entry.alfredoSessionId === undefined ? undefined : worktreeOfSession.get(entry.alfredoSessionId);
+    if (owner !== undefined && worktrees.some((wt) => wt.id === owner && wt.path === entry.cwd)) continue;
+    for (const wt of worktrees) {
+      if (wt.path !== entry.cwd || external[wt.id]?.worktreeId !== undefined) continue;
+      external[wt.id] = owner === undefined ? { running: true } : { worktreeId: owner, running: true };
+    }
+  }
+  return external;
 }
 
 /**

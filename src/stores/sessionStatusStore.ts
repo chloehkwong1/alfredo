@@ -16,6 +16,8 @@ interface SessionStatusState {
   setSessionQuestion: (sessionKey: string, question: AgentQuestion) => void;
   clearSessionQuestion: (sessionKey: string) => void;
   setSessionLinks: (sessionKey: string, links: SessionLinks) => void;
+  /** Replace the external work. A record equal to the stored one changes nothing. */
+  setExternalWork: (next: Record<string, WorkedFrom>) => void;
 }
 
 export const useSessionStatusStore = create<SessionStatusState>((set) => ({
@@ -61,4 +63,15 @@ export const useSessionStatusStore = create<SessionStatusState>((set) => ({
     }),
   setSessionLinks: (sessionKey, links) =>
     set((s) => (s.links[sessionKey] === links ? s : { links: { ...s.links, [sessionKey]: links } })),
+  setExternalWork: (next) =>
+    set((s) => {
+      const ids = Object.keys(next);
+      const same =
+        ids.length === Object.keys(s.external).length &&
+        ids.every((id) => {
+          const prev = s.external[id];
+          return prev !== undefined && prev.worktreeId === next[id].worktreeId && prev.running === next[id].running;
+        });
+      return same ? s : { external: next };
+    }),
 }));

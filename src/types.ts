@@ -68,6 +68,9 @@ export interface ClaudeRegistryEntry {
   status: string;
   /** Present only when status === "waiting", e.g. "permission prompt". */
   waitingFor?: string;
+  /** Pty session id of the Alfredo terminal session this process descends
+   *  from; absent for a session Alfredo did not start. */
+  alfredoSessionId?: string;
 }
 
 // ── Worktree / Kanban ───────────────────────────────────────────
