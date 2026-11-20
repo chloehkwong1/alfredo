@@ -349,17 +349,21 @@ export function useServer(activeWorktreeId: string | null) {
       if (isServerRunningHere) {
         if (runningServer) {
           pendingWarmUps.delete(runningServer.tabId);
-          await stopDevServer(activeWorktreeId, runningServer.tabId);
+          // A failed tab stop must not keep the detected servers running.
+          await stopDevServer(activeWorktreeId, runningServer.tabId).catch((e) =>
+            console.error("[handleToggleServer] stopDevServer failed:", e),
+          );
         }
         const { stillListening } = await stopDetectedServers(
           wt.path,
           worktrees.map((w) => w.path),
         );
+        const ports = [...new Set(stillListening)].sort((a, b) => a - b);
         const { detectedServers, setDetectedServers } = useWorkspaceStore.getState();
         const { [activeWorktreeId]: _stopped, ...rest } = detectedServers;
-        setDetectedServers(rest);
-        if (stillListening.length > 0) {
-          const ports = [...new Set(stillListening)];
+        // Survivors stay recorded so the button keeps offering Stop.
+        setDetectedServers(ports.length > 0 ? { ...rest, [activeWorktreeId]: ports } : rest);
+        if (ports.length > 0) {
           useToastStore.getState().show({
             message: `Couldn't stop the server on :${ports.join(", :")}`,
           });
