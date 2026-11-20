@@ -651,7 +651,7 @@ function PaneTabBar({
           <ArrowUpRight size={11} className="opacity-70" />
         </button>
       )}
-      {onToggleServer && runScriptName && (
+      {onToggleServer && (runScriptName || isServerRunning) && (
         <div className="flex items-center gap-1 mr-2 flex-shrink-0">
           <AnimatePresence>
             {isServerRunning && runScriptUrl && (

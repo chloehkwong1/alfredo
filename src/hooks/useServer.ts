@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useWorkspaceStore, selectIsServerRunning, selectServerPort } from "../stores/workspaceStore";
 import { useAppConfigStore } from "../stores/appConfigStore";
 import { useTabStore } from "../stores/tabStore";
 import { startPollInterval } from "../services/pollInterval";
@@ -11,7 +11,8 @@ import { startPollInterval } from "../services/pollInterval";
  * the store.
  */
 const revivingServers = new Set<string>();
-import { getConfig, detectDevServers, listSessions, claimWorktreePort, listWorktrees, warmUpServer } from "../api";
+import { getConfig, detectDevServers, stopDetectedServers, listSessions, claimWorktreePort, listWorktrees, warmUpServer } from "../api";
+import { useToastStore } from "../stores/toastStore";
 import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
 import { stopDevServer } from "../services/portReclaim";
@@ -330,20 +331,43 @@ export function useServer(activeWorktreeId: string | null) {
     }).catch((err) => console.error("Failed to load run script config:", err));
   }, [worktreeRepoPath, configVersion]);
 
-  const isServerRunningHere = runningServer !== null;
+  const isServerRunningHere = useWorkspaceStore((s) =>
+    activeWorktreeId ? selectIsServerRunning(s, activeWorktreeId) : false,
+  );
+  const serverPort = useWorkspaceStore((s) =>
+    activeWorktreeId ? selectServerPort(s, activeWorktreeId) : undefined,
+  );
 
   const handleToggleServer = useCallback(async () => {
-    if (!activeWorktreeId || !runScript || !worktreeRepoPath) return;
+    if (!activeWorktreeId) return;
 
-    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === activeWorktreeId);
+    const { worktrees } = useWorkspaceStore.getState();
+    const wt = worktrees.find((w) => w.id === activeWorktreeId);
     if (!wt) return;
 
     try {
       if (isServerRunningHere) {
-        pendingWarmUps.delete(runningServer!.tabId);
-        await stopDevServer(activeWorktreeId, runningServer!.tabId);
+        if (runningServer) {
+          pendingWarmUps.delete(runningServer.tabId);
+          await stopDevServer(activeWorktreeId, runningServer.tabId);
+        }
+        const { stillListening } = await stopDetectedServers(
+          wt.path,
+          worktrees.map((w) => w.path),
+        );
+        const { detectedServers, setDetectedServers } = useWorkspaceStore.getState();
+        const { [activeWorktreeId]: _stopped, ...rest } = detectedServers;
+        setDetectedServers(rest);
+        if (stillListening.length > 0) {
+          const ports = [...new Set(stillListening)];
+          useToastStore.getState().show({
+            message: `Couldn't stop the server on :${ports.join(", :")}`,
+          });
+        }
         return;
       }
+
+      if (!runScript || !worktreeRepoPath) return;
 
       // An empty/whitespace run command would spawn a bare shell with no server
       // (the resolve-args path falls back to []), leaving a dead tab. Don't start.
@@ -492,5 +516,8 @@ export function useServer(activeWorktreeId: string | null) {
       : runScript;
   }, [runScript, runningServer?.port]);
 
-  return { runScript: effectiveRunScript, isServerRunningHere, handleToggleServer };
+  const serverUrl =
+    runScript?.url ?? (serverPort ? `http://localhost:${serverPort}` : undefined);
+
+  return { runScript: effectiveRunScript, isServerRunningHere, handleToggleServer, serverUrl, serverPort };
 }

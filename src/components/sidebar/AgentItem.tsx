@@ -13,7 +13,7 @@ import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useWorkspaceStore, selectIsServerRunning, selectServerPort } from "../../stores/workspaceStore";
 import { useAppConfigValue } from "../../stores/appConfigStore";
 import { usePrStore } from "../../stores/prStore";
 import { worktreeDisplayLabel } from "../../lib/worktreeDisplayLabel";
@@ -375,10 +375,8 @@ function useAgentItemState(worktree: Worktree) {
     (worktree.prStatus && isTerminalPr(worktree.prStatus)
       ? toTerminalFlags(worktree.prStatus)
       : undefined);
-  const serverEntry = useWorkspaceStore(
-    (s) => s.runningServers[worktree.id],
-  );
-  const isServerRunning = !!serverEntry;
+  const isServerRunning = useWorkspaceStore((s) => selectIsServerRunning(s, worktree.id));
+  const serverPort = useWorkspaceStore((s) => selectServerPort(s, worktree.id));
 
   const effectiveSeen = isSeen && !isUnread;
 
@@ -387,7 +385,6 @@ function useAgentItemState(worktree: Worktree) {
     worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, effectiveSeen, worktree.justCreated, worktree.setupInProgress,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
-  const serverPort = serverEntry?.port;
   const assignedPort = worktree.assignedPort;
   return { prSummary, isServerRunning, serverPort, assignedPort, effectiveStatus, shouldPulse, isUnread };
 }

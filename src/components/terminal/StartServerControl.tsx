@@ -6,7 +6,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { stopDevServer } from "../../services/portReclaim";
 import { usePortPickerStore } from "../../stores/portPickerStore";
 import { useToastStore } from "../../stores/toastStore";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useWorkspaceStore, selectServerPort } from "../../stores/workspaceStore";
 import {
   REPO_COLOR_PALETTE,
   getRepoColor,
@@ -18,7 +18,8 @@ import { PortPicker, type PickerSlot } from "../settings/PortPicker";
 interface Props {
   worktreeId: string;
   isServerRunning: boolean;
-  runScriptName: string;
+  /** Absent when the repo has no run script (a detected server can still be stopped). */
+  runScriptName?: string;
   /** Parent's existing toggle handler — runs the silent auto-assign + start
    *  flow for the left half of the split-button. The split-button doesn't
    *  reimplement Start logic; it only adds the picker doorway. */
@@ -28,9 +29,10 @@ interface Props {
 function StartServerControl({
   worktreeId,
   isServerRunning,
-  runScriptName,
+  runScriptName: runScriptNameProp,
   onToggleServer,
 }: Props) {
+  const runScriptName = runScriptNameProp ?? "server";
   const [open, setOpen] = useState(false);
   const [slots, setSlots] = useState<PickerSlot[]>([]);
   const [autoAssignEnabled, setAutoAssignEnabled] = useState<boolean | null>(null);
@@ -43,6 +45,7 @@ function StartServerControl({
   const runningServers = useWorkspaceStore((s) => s.runningServers);
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
   const { repoColors, repoDisplayNames, repoShortLabels, repos } = useAppConfig();
+  const serverPort = useWorkspaceStore((s) => selectServerPort(s, worktreeId));
   const showToast = useToastStore((s) => s.show);
 
   const pendingForStart = usePortPickerStore((s) => s.pendingForStart);
@@ -209,9 +212,13 @@ function StartServerControl({
             isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`
           }
           title={
-            !isServerRunning && showCaret
-              ? `Start ${runScriptName} · Alt-click to pick a port`
-              : undefined
+            isServerRunning
+              ? serverPort
+                ? `Stop ${runScriptName} on :${serverPort}`
+                : undefined
+              : showCaret
+                ? `Start ${runScriptName} · Alt-click to pick a port`
+                : undefined
           }
           onClick={handleStartClick}
           className={[

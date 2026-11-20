@@ -164,7 +164,7 @@ function AppShell() {
   // effect body (extracted so it can be tested against a real window mock).
   useAttentionSignal();
 
-  const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
+  const { runScript, isServerRunningHere, handleToggleServer, serverUrl } = useServer(activeWorktreeId);
   useStaleServerCleanup();
   useServerReconciliation();
   useDetectedServers();
@@ -445,7 +445,7 @@ function AppShell() {
                       onToggleServer={handleToggleServer}
                       isServerRunning={isServerRunningHere}
                       runScriptName={runScript?.name}
-                      runScriptUrl={runScript?.url}
+                      runScriptUrl={serverUrl}
                       assignedPort={worktree?.assignedPort}
                       hasWorktreeRepos={hasWorktreeRepos}
                     />
