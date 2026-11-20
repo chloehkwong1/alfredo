@@ -757,3 +757,13 @@ export interface Annotation {
   text: string;
   createdAt: number;
 }
+
+export interface DetectedServer {
+  worktreePath: string;
+  ports: number[];
+}
+
+export interface StopDetectedResult {
+  stopped: number[];
+  stillListening: number[];
+}

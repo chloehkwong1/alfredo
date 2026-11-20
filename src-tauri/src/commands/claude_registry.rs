@@ -144,7 +144,7 @@ async fn ps_parents() -> std::result::Result<HashMap<u32, u32>, String> {
 }
 
 /// True the first time it is called on `seen`, false every time after.
-fn first_failure(seen: &AtomicBool) -> bool {
+pub(crate) fn first_failure(seen: &AtomicBool) -> bool {
     !seen.swap(true, Ordering::Relaxed)
 }
 

@@ -1,9 +1,9 @@
 //! Detects dev servers listening on a worktree's behalf, whoever started them.
-// removed in Task 3 when the commands use these
-#![allow(dead_code)]
 
+use crate::types::AppError;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::atomic::AtomicBool;
 
 /// Ports from here up are the OS's ephemeral range (outgoing connections, agent
 /// helpers), never a dev server.
@@ -242,6 +242,249 @@ fn kill_targets(
     let mut targets: Vec<u32> = targets.into_iter().collect();
     targets.sort_unstable();
     targets
+}
+
+/// Run a command with a 2 s timeout. `lsof` exits 1 when it finds nothing or
+/// could not read some process (it still prints the rest), so `lenient` accepts
+/// exit 1; any other failed status is an error. The error is the reason only.
+async fn run_capture(program: &str, args: &[&str], lenient: bool) -> Result<String, String> {
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        tokio::process::Command::new(program)
+            .args(args)
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .map_err(|_| format!("{program} timed out"))?
+    .map_err(|e| format!("{program} did not start: {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    if !(output.status.success() || lenient && output.status.code() == Some(1)) {
+        return Err(format!("{program} exited {}", output.status));
+    }
+    Ok(stdout)
+}
+
+fn pid_list(pids: impl IntoIterator<Item = u32>) -> String {
+    let unique: BTreeSet<u32> = pids.into_iter().collect();
+    unique
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+async fn lookup_cwds(pids: impl IntoIterator<Item = u32>) -> Result<HashMap<u32, String>, String> {
+    let list = pid_list(pids);
+    if list.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let raw = run_capture("lsof", &["-a", "-d", "cwd", "-p", &list, "-Fn"], true).await?;
+    Ok(parse_lsof_cwds(&raw))
+}
+
+/// What one pass over the machine saw.
+struct Scan {
+    listeners: Vec<Listener>,
+    cwds: HashMap<u32, String>,
+    procs: HashMap<u32, ProcInfo>,
+    protected: HashSet<u32>,
+}
+
+async fn scan(extra_protected: &HashSet<u32>) -> Result<Scan, String> {
+    let raw = run_capture("lsof", &["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"], true).await?;
+    let listeners = parse_lsof_listeners(&raw);
+    let cwds = lookup_cwds(listeners.iter().map(|l| l.pid)).await?;
+    let procs = parse_ps_table(&run_capture("ps", &["-A", "-o", "pid=,ppid=,comm="], false).await?);
+    let pty_pids: HashSet<u32> = tokio::task::spawn_blocking(|| {
+        crate::pty_manager::session_pids_in(std::path::Path::new("/tmp"))
+    })
+    .await
+    .map_err(|_| "the pid file scan panicked".to_string())?
+    .into_keys()
+    .collect();
+    let mut protected = protected_pids(&procs, &pty_pids, std::process::id());
+    protected.extend(extra_protected);
+    Ok(Scan {
+        listeners,
+        cwds,
+        procs,
+        protected,
+    })
+}
+
+fn canonical(path: &str) -> String {
+    std::fs::canonicalize(path)
+        .ok()
+        .and_then(|p| p.to_str().map(str::to_string))
+        .unwrap_or_else(|| path.to_string())
+}
+
+fn log_once(seen: &AtomicBool, reason: &str) {
+    if crate::commands::claude_registry::first_failure(seen) {
+        eprintln!("[dev-servers] detection unavailable (logged once per app run): {reason}");
+    }
+}
+
+/// Servers per worktree, in the caller's spelling. Any lookup failure yields an
+/// empty list (logged once per app run): a poll must never fail loudly.
+async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
+    static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
+    let mut originals: HashMap<String, Vec<&String>> = HashMap::new();
+    for path in worktree_paths {
+        originals.entry(canonical(path)).or_default().push(path);
+    }
+    let canon: Vec<String> = originals.keys().cloned().collect();
+    let scan = match scan(&HashSet::new()).await {
+        Ok(scan) => scan,
+        Err(reason) => {
+            log_once(&FAILURE_LOGGED, &reason);
+            return Vec::new();
+        }
+    };
+    let mut servers: Vec<DetectedServer> =
+        select_servers(&scan.listeners, &scan.cwds, &scan.protected, &canon)
+            .into_iter()
+            .flat_map(|server| {
+                originals
+                    .get(&server.worktree_path)
+                    .into_iter()
+                    .flatten()
+                    .map(|original| DetectedServer {
+                        worktree_path: (*original).clone(),
+                        ports: server.ports.clone(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+    servers.sort_by(|a, b| a.worktree_path.cmp(&b.worktree_path));
+    servers
+}
+
+#[tauri::command]
+pub async fn detect_dev_servers(
+    worktree_paths: Vec<String>,
+) -> Result<Vec<DetectedServer>, AppError> {
+    Ok(detect(&worktree_paths).await)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StopDetectedResult {
+    pub stopped: Vec<u32>,
+    pub still_listening: Vec<u16>,
+}
+
+fn is_alive(pid: u32) -> bool {
+    // SAFETY: signal 0 only checks that the process exists.
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
+fn signal(pids: &[u32], sig: i32) {
+    for &pid in pids {
+        // SAFETY: plain kill(2); a pid that already exited just returns ESRCH.
+        unsafe {
+            libc::kill(pid as i32, sig);
+        }
+    }
+}
+
+/// Stop every non-protected server running for `worktree_path`: SIGTERM, up to
+/// 3 s of grace, then SIGKILL. Reports what was signalled and any port still
+/// listening afterwards. Nothing listening is success with nothing stopped.
+#[tauri::command]
+pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetectedResult, AppError> {
+    static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
+    static REGISTRY_FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
+    let nothing = StopDetectedResult {
+        stopped: Vec::new(),
+        still_listening: Vec::new(),
+    };
+    let worktree = canonical(&worktree_path);
+    let worktrees = [worktree.clone()];
+
+    let registry_pids: HashSet<u32> = match crate::commands::claude_registry::poll_claude_registry()
+        .await
+    {
+        Ok(entries) => entries.into_iter().map(|e| e.pid).collect(),
+        Err(e) => {
+            if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
+                eprintln!("[dev-servers] claude registry not consulted (logged once per app run): {e}");
+            }
+            HashSet::new()
+        }
+    };
+    let mut scan = match scan(&registry_pids).await {
+        Ok(scan) => scan,
+        Err(reason) => {
+            log_once(&FAILURE_LOGGED, &reason);
+            return Ok(nothing);
+        }
+    };
+    let listener_pids: BTreeSet<u32> = scan
+        .listeners
+        .iter()
+        .filter(|l| !scan.protected.contains(&l.pid) && l.port < EPHEMERAL_PORT_START)
+        .filter(|l| {
+            scan.cwds
+                .get(&l.pid)
+                .is_some_and(|cwd| worktree_for_cwd(cwd, &worktrees).is_some())
+        })
+        .map(|l| l.pid)
+        .collect();
+    if listener_pids.is_empty() {
+        return Ok(nothing);
+    }
+
+    // find_root needs the cwd of every ancestor, not just of the listeners.
+    let mut ancestors = HashSet::new();
+    for &listener in &listener_pids {
+        let mut pid = listener;
+        for _ in 0..MAX_ROOT_WALK {
+            let Some(parent) = scan.procs.get(&pid).map(|info| info.ppid) else {
+                break;
+            };
+            if parent <= 1 {
+                break;
+            }
+            ancestors.insert(parent);
+            pid = parent;
+        }
+    }
+    ancestors.retain(|pid| !scan.cwds.contains_key(pid));
+    match lookup_cwds(ancestors).await {
+        Ok(more) => scan.cwds.extend(more),
+        Err(reason) => {
+            log_once(&FAILURE_LOGGED, &reason);
+            return Ok(nothing);
+        }
+    }
+
+    let mut targets = BTreeSet::new();
+    for &listener in &listener_pids {
+        let root = find_root(listener, &scan.procs, &scan.cwds, &scan.protected, &worktree);
+        targets.extend(kill_targets(root, listener, &scan.procs, &scan.protected));
+    }
+    let targets: Vec<u32> = targets.into_iter().collect();
+    signal(&targets, libc::SIGTERM);
+    for _ in 0..30 {
+        if !targets.iter().any(|&pid| is_alive(pid)) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let survivors: Vec<u32> = targets.iter().copied().filter(|&p| is_alive(p)).collect();
+    signal(&survivors, libc::SIGKILL);
+
+    let still_listening = detect(std::slice::from_ref(&worktree_path))
+        .await
+        .into_iter()
+        .flat_map(|server| server.ports)
+        .collect();
+    Ok(StopDetectedResult {
+        stopped: targets,
+        still_listening,
+    })
 }
 
 #[cfg(test)]
@@ -522,5 +765,102 @@ mod tests {
         let procs = proc_table(&[(302, 1, "zsh"), (303, 302, "claude"), (304, 303, "node")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         assert!(kill_targets(302, 303, &procs, &protected).is_empty());
+    }
+
+    fn tool_available(tool: &str) -> bool {
+        std::process::Command::new("which")
+            .arg(tool)
+            .output()
+            .is_ok_and(|o| o.status.success())
+    }
+
+    /// Start python's http.server in `dir` on a free port below 49152.
+    fn spawn_server(dir: &std::path::Path) -> Option<(std::process::Child, u16)> {
+        // Tests run in parallel: a shared counter keeps them off each other's port.
+        static NEXT_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(41000);
+        let port = loop {
+            let p = NEXT_PORT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if p >= 41100 {
+                return None;
+            }
+            if std::net::TcpListener::bind(("127.0.0.1", p)).is_ok() {
+                break p;
+            }
+        };
+        let child = std::process::Command::new("python3")
+            .args(["-m", "http.server", &port.to_string(), "--bind", "127.0.0.1"])
+            .current_dir(dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .ok()?;
+        Some((child, port))
+    }
+
+    async fn wait_detected(path: &str, port: u16) {
+        for _ in 0..50 {
+            let servers = detect_dev_servers(vec![path.to_string()]).await.unwrap();
+            if servers.len() == 1 && servers[0].ports == vec![port] && servers[0].worktree_path == path
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        panic!("server on {port} not detected for {path}");
+    }
+
+    async fn real_listener_round_trip(dir: &std::path::Path) {
+        let path = dir.to_str().unwrap().to_string();
+        let (mut child, port) = spawn_server(dir).expect("could not start python http.server");
+        wait_detected(&path, port).await;
+        let result = stop_detected_servers(path.clone()).await.unwrap();
+        assert!(result.stopped.contains(&child.id()), "{:?}", result.stopped);
+        assert!(result.still_listening.is_empty());
+        for _ in 0..10 {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        assert!(child.try_wait().unwrap().is_some());
+        let again = stop_detected_servers(path).await.unwrap();
+        assert!(again.stopped.is_empty() && again.still_listening.is_empty());
+        let _ = child.wait();
+    }
+
+    #[tokio::test]
+    async fn detects_and_stops_a_real_listener() {
+        if !tool_available("lsof") || !tool_available("python3") {
+            eprintln!("skipping: lsof or python3 missing");
+            return;
+        }
+        let dir = tempfile::TempDir::new().unwrap();
+        real_listener_round_trip(dir.path()).await;
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn canonicalizes_tmp_paths() {
+        if !tool_available("lsof") || !tool_available("python3") {
+            eprintln!("skipping: lsof or python3 missing");
+            return;
+        }
+        let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+        assert!(dir.path().starts_with("/tmp"));
+        real_listener_round_trip(dir.path()).await;
+    }
+
+    #[tokio::test]
+    async fn stop_is_idempotent() {
+        if !tool_available("lsof") {
+            eprintln!("skipping: lsof missing");
+            return;
+        }
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().to_str().unwrap().to_string();
+        for _ in 0..2 {
+            let result = stop_detected_servers(path.clone()).await.unwrap();
+            assert!(result.stopped.is_empty() && result.still_listening.is_empty());
+        }
     }
 }

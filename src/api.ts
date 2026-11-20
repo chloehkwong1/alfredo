@@ -3,6 +3,8 @@ import type {
   AgentType,
   AppConfig,
   ClaudeRegistryEntry,
+  DetectedServer,
+  StopDetectedResult,
   CommitInfo,
   DiffFile,
   EffectiveConfig,
@@ -749,6 +751,18 @@ export function loadSessionFile(
 
 export function pollClaudeRegistry(): Promise<ClaudeRegistryEntry[]> {
   return invoke<ClaudeRegistryEntry[]>("poll_claude_registry");
+}
+
+export function detectDevServers(
+  worktreePaths: string[],
+): Promise<DetectedServer[]> {
+  return invoke<DetectedServer[]>("detect_dev_servers", { worktreePaths });
+}
+
+export function stopDetectedServers(
+  worktreePath: string,
+): Promise<StopDetectedResult> {
+  return invoke<StopDetectedResult>("stop_detected_servers", { worktreePath });
 }
 
 /** Eagerly persist one tab's discovered Claude session id (write-through, Rust-side). */
