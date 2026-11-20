@@ -184,20 +184,42 @@ fn find_root(
     root
 }
 
-/// What to signal to stop the server under `root`: every descendant except
-/// protected processes and their subtrees, plus `root` itself unless it is a
-/// shell. Ascending.
+/// What to signal to stop the server behind `listener_pid` under `root`.
+/// A shell root is kept, along with its other jobs: only the job on the
+/// listener's ancestor chain is stopped. Any other root is stopped with all
+/// of its descendants. Protected processes and their subtrees are always
+/// spared. Ascending.
 fn kill_targets(
     root: u32,
+    listener_pid: u32,
     procs: &HashMap<u32, ProcInfo>,
     protected: &HashSet<u32>,
 ) -> Vec<u32> {
+    let root_is_shell = procs.get(&root).is_some_and(|info| {
+        matches!(
+            proc_basename(&info.name),
+            "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
+        )
+    });
+    let start = if root_is_shell {
+        let mut job = listener_pid;
+        for _ in 0..MAX_ROOT_WALK {
+            match procs.get(&job) {
+                Some(info) if info.ppid != root => job = info.ppid,
+                _ => break,
+            }
+        }
+        job
+    } else {
+        root
+    };
+
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for (pid, info) in procs {
         children.entry(info.ppid).or_default().push(*pid);
     }
     let mut targets = HashSet::new();
-    let mut stack = vec![root];
+    let mut stack = vec![start];
     while let Some(pid) = stack.pop() {
         for &child in children.get(&pid).into_iter().flatten() {
             if !protected.contains(&child) && targets.insert(child) {
@@ -205,14 +227,8 @@ fn kill_targets(
             }
         }
     }
-    let root_is_shell = procs.get(&root).is_some_and(|info| {
-        matches!(
-            proc_basename(&info.name),
-            "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
-        )
-    });
-    if !root_is_shell {
-        targets.insert(root);
+    if !protected.contains(&start) {
+        targets.insert(start);
     }
     let mut targets: Vec<u32> = targets.into_iter().collect();
     targets.sort_unstable();
@@ -370,7 +386,7 @@ mod tests {
         let root = find_root(4604, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 4597);
         assert_eq!(
-            kill_targets(root, &procs, &protected),
+            kill_targets(root, 4604, &procs, &protected),
             vec![4597, 4598, 4601, 4604, 5028]
         );
     }
@@ -387,7 +403,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(52300, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 52209);
-        assert_eq!(kill_targets(root, &procs, &protected), vec![190, 52300]);
+        assert_eq!(kill_targets(root, 52300, &procs, &protected), vec![190, 52300]);
     }
 
     #[test]
@@ -397,7 +413,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::from([700]), 857);
         let root = find_root(701, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 701);
-        assert_eq!(kill_targets(root, &procs, &protected), vec![701]);
+        assert_eq!(kill_targets(root, 701, &procs, &protected), vec![701]);
     }
 
     #[test]
@@ -413,7 +429,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(303, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 302);
-        assert_eq!(kill_targets(root, &procs, &protected), vec![303]);
+        assert_eq!(kill_targets(root, 303, &procs, &protected), vec![303]);
     }
 
     #[test]
@@ -432,7 +448,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(98306, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 98306);
-        assert_eq!(kill_targets(root, &procs, &protected), vec![98306]);
+        assert_eq!(kill_targets(root, 98306, &procs, &protected), vec![98306]);
     }
 
     #[test]
@@ -444,7 +460,7 @@ mod tests {
             (13, 12, "node"),
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(kill_targets(10, &procs, &protected), vec![10, 11]);
+        assert_eq!(kill_targets(10, 11, &procs, &protected), vec![10, 11]);
     }
 
     #[test]
@@ -462,6 +478,19 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(42, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 40);
-        assert!(kill_targets(root, &procs, &protected).contains(&40));
+        assert!(kill_targets(root, 42, &procs, &protected).contains(&40));
+    }
+
+    #[test]
+    fn shell_root_spares_its_other_jobs() {
+        let procs = proc_table(&[
+            (302, 1, "zsh"),
+            (303, 302, "puma"),
+            (304, 303, "worker"),
+            (305, 302, "vim"),
+            (306, 302, "rails"),
+        ]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert_eq!(kill_targets(302, 304, &procs, &protected), vec![303, 304]);
     }
 }
