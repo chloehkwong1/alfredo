@@ -1,0 +1,22 @@
+src-tauri/src/commands/dev_servers.rs
+  s_4ba082891c0f56::t_515edb2c766f78 215-228,247,263-265,785,788,798,800,814,816,836,944,946,1028,1035
+  s_4ba082891c0f56::t_f285d1016d4a96 260-262,514-519,522-523,525,586,599-600,603,766-767,770,825-828,838,850,858-861,865,869-872,881-883,885,887-889,901,903-905,907,912-928,1014,1021
+  s_4ba082891c0f56::t_128007a552a66f 583
+  s_4ba082891c0f56::t_37ae93a6e6644d 284-289,929-930
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abbacbfaeb3afb8d45377aa84506d3b6a1d94c8c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba082891c0f56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a0ca37f-abe4-4c6d-a474-6260443551e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
