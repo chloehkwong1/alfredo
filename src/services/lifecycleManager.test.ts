@@ -11,6 +11,10 @@ const mockSetRunningServer = vi.fn();
 const mockGetSession = vi.fn(() => null as { sessionId: string } | null);
 const mockListSessions = vi.fn(() => Promise.resolve([] as unknown[]));
 const mockClosePty = vi.fn((..._args: unknown[]) => Promise.resolve());
+const mockSetDetectedServers = vi.fn();
+const mockStopDetectedServers = vi.fn((..._args: unknown[]) =>
+  Promise.resolve({ stopped: [] as number[], stillListening: [] as number[] }),
+);
 const mockDeleteWorktreeApi = vi.fn().mockResolvedValue(undefined);
 const mockReleaseWorktreePort = vi.fn((..._args: unknown[]) => Promise.resolve());
 const mockDeleteSessionFile = vi.fn().mockResolvedValue(undefined);
@@ -71,6 +75,7 @@ vi.mock("../api", () => ({
     mockReleaseWorktreePort(wt.repoPath, wt.id),
   listSessions: () => mockListSessions(),
   closePty: (...args: unknown[]) => mockClosePty(...args),
+  stopDetectedServers: (...args: unknown[]) => mockStopDetectedServers(...args),
 }));
 
 vi.mock("./SessionPersistence", () => ({
@@ -88,6 +93,7 @@ beforeEach(() => {
   mockGetSession.mockReturnValue(null);
   mockListSessions.mockResolvedValue([]);
   mockClosePty.mockResolvedValue(undefined);
+  mockStopDetectedServers.mockResolvedValue({ stopped: [], stillListening: [] });
   mockDeleteWorktreeApi.mockResolvedValue(undefined);
   mockReleaseWorktreePort.mockResolvedValue(undefined);
   mockDeleteSessionFile.mockResolvedValue(undefined);
@@ -105,6 +111,9 @@ beforeEach(() => {
     removeWorktree: mockRemoveWorktree,
     runningServers: {},
     setRunningServer: mockSetRunningServer,
+    worktrees: [],
+    detectedServers: {},
+    setDetectedServers: mockSetDetectedServers,
   };
   layoutStoreState = {
     layout: {},
@@ -686,7 +695,7 @@ describe("lifecycleManager", () => {
 });
 
 describe("stopServerAndReleasePort", () => {
-  const wt = { repoPath: "/repo", id: "/repo::feature-1" };
+  const wt = { repoPath: "/repo", id: "/repo::feature-1", path: "/wt/feature-1" };
 
   it("stops the running dev server before releasing its port", async () => {
     const callOrder: string[] = [];
@@ -858,6 +867,38 @@ describe("stopServerAndReleasePort", () => {
     await stopServerAndReleasePort(wt, "test");
 
     expect(mockStopSession).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+  });
+
+  it("stops detected servers and drops the worktree's detected entry", async () => {
+    workspaceStoreState.worktrees = [{ path: "/wt/feature-1" }, { path: "/wt/other" }];
+    workspaceStoreState.detectedServers = { [wt.id]: [3021], other: [4000] };
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopDetectedServers).toHaveBeenCalledWith("/wt/feature-1", [
+      "/wt/feature-1",
+      "/wt/other",
+    ]);
+    expect(mockSetDetectedServers).toHaveBeenCalledWith({ other: [4000] });
+    expect(mockReleaseWorktreePort).toHaveBeenCalled();
+  });
+
+  it("keeps the assignment and the detected entry when a detected server survives", async () => {
+    workspaceStoreState.detectedServers = { [wt.id]: [3021] };
+    mockStopDetectedServers.mockResolvedValue({ stopped: [], stillListening: [3021] });
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockSetDetectedServers).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+  });
+
+  it("keeps the assignment when stopping detected servers throws", async () => {
+    mockStopDetectedServers.mockRejectedValue(new Error("boom"));
+
+    await stopServerAndReleasePort(wt, "test");
+
     expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
   });
 });

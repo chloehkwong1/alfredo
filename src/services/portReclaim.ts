@@ -1,4 +1,4 @@
-import { releasePortFor, listSessions, closePty } from "../api";
+import { releasePortFor, listSessions, closePty, stopDetectedServers } from "../api";
 import { sessionManager } from "./sessionManager";
 import { useTabStore } from "../stores/tabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -49,7 +49,7 @@ export async function stopDevServer(worktreeId: string, tabId: string): Promise<
  * Start path claims a fresh port because the assignment is gone.
  */
 export async function stopServerAndReleasePort(
-  wt: { repoPath: string; id: string },
+  wt: { repoPath: string; id: string; path: string },
   context: string,
 ): Promise<void> {
   // Snapshot up front. Taking it before any await also bounds what we may kill:
@@ -91,6 +91,32 @@ export async function stopServerAndReleasePort(
       stoppedCleanly = false;
       console.warn(`[${context}] Failed to close orphaned server session ${srv.id}:`, wt.id, e);
     }
+  }
+
+  // Servers Alfredo did not start (a `bin/florence` run from a Claude session).
+  // A thrown error or a survivor is treated like a failed tab stop above: the
+  // port is still bound, so the assignment stays.
+  try {
+    const { worktrees } = useWorkspaceStore.getState();
+    const { stillListening } = await stopDetectedServers(
+      wt.path,
+      worktrees.map((w) => w.path),
+    );
+    if (stillListening.length > 0) {
+      stoppedCleanly = false;
+      console.warn(
+        `[${context}] Detected server still listening on`,
+        stillListening,
+        wt.id,
+      );
+    } else {
+      const { detectedServers, setDetectedServers } = useWorkspaceStore.getState();
+      const { [wt.id]: _stopped, ...rest } = detectedServers;
+      setDetectedServers(rest);
+    }
+  } catch (e) {
+    stoppedCleanly = false;
+    console.warn(`[${context}] Failed to stop detected servers:`, wt.id, e);
   }
 
   if (!stoppedCleanly) {
