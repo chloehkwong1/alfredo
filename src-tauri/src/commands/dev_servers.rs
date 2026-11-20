@@ -212,6 +212,20 @@ fn is_app_bundle(procs: &HashMap<u32, ProcInfo>, pid: u32) -> bool {
         .is_some_and(|info| info.name.contains(".app/"))
 }
 
+/// A tmux, screen or zellij that is someone's own session (not overmind's):
+/// the walk stops below it, so a pane's interactive shell becomes the root and
+/// is spared by the shell rule.
+fn is_personal_multiplexer(
+    procs: &HashMap<u32, ProcInfo>,
+    args: &HashMap<u32, String>,
+    pid: u32,
+) -> bool {
+    procs
+        .get(&pid)
+        .is_some_and(|info| matches!(proc_basename(&info.name), "tmux" | "screen" | "zellij"))
+        && !args.get(&pid).is_some_and(|a| a.contains("overmind-"))
+}
+
 /// Parse `ps -A -o pid=,args=` into pid -> full command line.
 fn parse_ps_args(raw: &str) -> HashMap<u32, String> {
     raw.lines()
@@ -230,6 +244,7 @@ fn find_root(
     procs: &HashMap<u32, ProcInfo>,
     cwds: &HashMap<u32, String>,
     protected: &HashSet<u32>,
+    args: &HashMap<u32, String>,
     worktree: &str,
 ) -> u32 {
     let worktrees = [worktree.to_string()];
@@ -242,7 +257,12 @@ fn find_root(
             && cwds
                 .get(&parent)
                 .is_some_and(|cwd| worktree_for_cwd(cwd, &worktrees).is_some());
-        if parent <= 1 || protected.contains(&parent) || is_app_bundle(procs, parent) || !inside {
+        if parent <= 1
+            || protected.contains(&parent)
+            || is_app_bundle(procs, parent)
+            || is_personal_multiplexer(procs, args, parent)
+            || !inside
+        {
             break;
         }
         root = parent;
@@ -251,8 +271,6 @@ fn find_root(
 }
 
 /// What to signal to stop the server behind `listener_pid` under `root`.
-/// `root_args` is the root's command line, if known: a tmux, screen or zellij
-/// root is treated like a shell (someone's own session) unless it is overmind's.
 /// A shell root is kept, along with its other jobs: only the job on the
 /// listener's ancestor chain is stopped. Any other root is stopped with all
 /// of its descendants. Protected processes and their subtrees are always
@@ -262,15 +280,13 @@ fn kill_targets(
     listener_pid: u32,
     procs: &HashMap<u32, ProcInfo>,
     protected: &HashSet<u32>,
-    root_args: Option<&str>,
 ) -> Vec<u32> {
-    let root_is_shell = procs
-        .get(&root)
-        .is_some_and(|info| match proc_basename(&info.name) {
-            "sh" | "bash" | "zsh" | "fish" | "dash" | "login" => true,
-            "tmux" | "screen" | "zellij" => !root_args.is_some_and(|a| a.contains("overmind-")),
-            _ => false,
-        });
+    let root_is_shell = procs.get(&root).is_some_and(|info| {
+        matches!(
+            proc_basename(&info.name),
+            "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
+        )
+    });
     let start = if root_is_shell && listener_pid != root {
         let mut job = listener_pid;
         let mut found = false;
@@ -495,19 +511,18 @@ pub async fn stop_detected_servers(
         .collect();
     worktrees.push(worktree.clone());
 
-    let registry_pids: HashSet<u32> = match crate::commands::claude_registry::poll_claude_registry()
-        .await
-    {
-        Ok(entries) => entries.into_iter().map(|e| e.pid).collect(),
-        Err(e) => {
-            if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
-                eprintln!(
+    let registry_pids: HashSet<u32> =
+        match crate::commands::claude_registry::poll_claude_registry().await {
+            Ok(entries) => entries.into_iter().map(|e| e.pid).collect(),
+            Err(e) => {
+                if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
+                    eprintln!(
                     "[dev-servers] claude registry not consulted (logged once per app run): {e}"
                 );
+                }
+                HashSet::new()
             }
-            HashSet::new()
-        }
-    };
+        };
     let mut scan = match scan(&registry_pids).await {
         Ok(scan) => scan,
         Err(reason) => {
@@ -565,15 +580,10 @@ pub async fn stop_detected_servers(
             &scan.procs,
             &scan.cwds,
             &scan.protected,
+            &args,
             &worktree,
         );
-        targets.extend(kill_targets(
-            root,
-            listener,
-            &scan.procs,
-            &scan.protected,
-            args.get(&root).map(String::as_str),
-        ));
+        targets.extend(kill_targets(root, listener, &scan.procs, &scan.protected));
     }
     let targets: Vec<u32> = targets.into_iter().collect();
     signal(&targets, libc::SIGTERM);
@@ -586,9 +596,11 @@ pub async fn stop_detected_servers(
     let survivors: Vec<u32> = targets.iter().copied().filter(|&p| is_alive(p)).collect();
     signal(&survivors, libc::SIGKILL);
 
-    let still_listening = detect(std::slice::from_ref(&worktree))
+    // Over every known worktree, so a spared nested server is not blamed on the target.
+    let still_listening = detect(&worktrees)
         .await
         .into_iter()
+        .filter(|server| server.worktree_path == worktree)
         .flat_map(|server| server.ports)
         .collect();
     Ok(StopDetectedResult {
@@ -751,16 +763,11 @@ mod tests {
         ]);
         let cwds = cwd_table(&[4597, 4598, 4601, 4604, 5028], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(4604, &procs, &cwds, &protected, "/w/a");
+        let args = HashMap::from([(4597, "tmux -C -L overmind-x-1 new".to_string())]);
+        let root = find_root(4604, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(root, 4597);
         assert_eq!(
-            kill_targets(
-                root,
-                4604,
-                &procs,
-                &protected,
-                Some("tmux -C -L overmind-x-1 new")
-            ),
+            kill_targets(root, 4604, &procs, &protected),
             vec![4597, 4598, 4601, 4604, 5028]
         );
     }
@@ -775,10 +782,10 @@ mod tests {
         ]);
         let cwds = cwd_table(&[12591, 52209, 52300, 190], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(52300, &procs, &cwds, &protected, "/w/a");
+        let root = find_root(52300, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 52209);
         assert_eq!(
-            kill_targets(root, 52300, &procs, &protected, None),
+            kill_targets(root, 52300, &procs, &protected),
             vec![190, 52300]
         );
     }
@@ -788,9 +795,9 @@ mod tests {
         let procs = proc_table(&[(700, 1, "zsh"), (701, 700, "puma")]);
         let cwds = cwd_table(&[700, 701], "/w/a");
         let protected = protected_pids(&procs, &HashSet::from([700]), 857);
-        let root = find_root(701, &procs, &cwds, &protected, "/w/a");
+        let root = find_root(701, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 701);
-        assert_eq!(kill_targets(root, 701, &procs, &protected, None), vec![701]);
+        assert_eq!(kill_targets(root, 701, &procs, &protected), vec![701]);
     }
 
     #[test]
@@ -804,9 +811,9 @@ mod tests {
         let mut cwds = cwd_table(&[300, 301], "/");
         cwds.extend(cwd_table(&[302, 303], "/w/a"));
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(303, &procs, &cwds, &protected, "/w/a");
+        let root = find_root(303, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 302);
-        assert_eq!(kill_targets(root, 303, &procs, &protected, None), vec![303]);
+        assert_eq!(kill_targets(root, 303, &procs, &protected), vec![303]);
     }
 
     #[test]
@@ -815,7 +822,10 @@ mod tests {
         let mut cwds = cwd_table(&[50], "/w/ab");
         cwds.extend(cwd_table(&[51], "/w/a/sub"));
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(find_root(51, &procs, &cwds, &protected, "/w/a"), 51);
+        assert_eq!(
+            find_root(51, &procs, &cwds, &protected, &HashMap::new(), "/w/a"),
+            51
+        );
     }
 
     #[test]
@@ -823,12 +833,9 @@ mod tests {
         let procs = proc_table(&[(98306, 1, "worker")]);
         let cwds = cwd_table(&[98306], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(98306, &procs, &cwds, &protected, "/w/a");
+        let root = find_root(98306, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 98306);
-        assert_eq!(
-            kill_targets(root, 98306, &procs, &protected, None),
-            vec![98306]
-        );
+        assert_eq!(kill_targets(root, 98306, &procs, &protected), vec![98306]);
     }
 
     #[test]
@@ -840,10 +847,7 @@ mod tests {
             (13, 12, "node"),
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(
-            kill_targets(10, 11, &procs, &protected, Some("tmux -L overmind-x")),
-            vec![10, 11]
-        );
+        assert_eq!(kill_targets(10, 11, &procs, &protected), vec![10, 11]);
     }
 
     #[test]
@@ -851,20 +855,21 @@ mod tests {
         let procs = proc_table(&[(20, 19, "puma")]);
         let cwds = cwd_table(&[20], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(find_root(20, &procs, &cwds, &protected, "/w/a"), 20);
+        assert_eq!(
+            find_root(20, &procs, &cwds, &protected, &HashMap::new(), "/w/a"),
+            20
+        );
     }
 
     #[test]
-    fn personal_tmux_started_in_worktree_counts_as_root() {
+    fn personal_tmux_pane_shell_survives() {
         let procs = proc_table(&[(40, 1, "tmux"), (41, 40, "zsh"), (42, 41, "puma")]);
         let cwds = cwd_table(&[40, 41, 42], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(42, &procs, &cwds, &protected, "/w/a");
-        assert_eq!(root, 40);
-        assert_eq!(
-            kill_targets(root, 42, &procs, &protected, Some("tmux new -s work")),
-            vec![41, 42]
-        );
+        let args = HashMap::from([(40, "tmux new -s work".to_string())]);
+        let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(root, 41);
+        assert_eq!(kill_targets(root, 42, &procs, &protected), vec![42]);
     }
 
     #[test]
@@ -873,14 +878,15 @@ mod tests {
             (40, 1, "tmux"),
             (41, 40, "zsh"),
             (42, 41, "puma"),
-            (43, 40, "zsh"),
-            (44, 43, "vim"),
+            (43, 41, "worker"),
+            (44, 40, "zsh"),
+            (45, 44, "vim"),
         ]);
+        let cwds = cwd_table(&[40, 41, 42, 43, 44, 45], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(
-            kill_targets(40, 42, &procs, &protected, Some("tmux new -s work")),
-            vec![41, 42]
-        );
+        let args = HashMap::from([(40, "tmux new -s work".to_string())]);
+        let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(kill_targets(root, 42, &procs, &protected), vec![42]);
     }
 
     #[test]
@@ -892,17 +898,34 @@ mod tests {
             (43, 40, "zsh"),
             (44, 43, "sidekiq"),
         ]);
+        let cwds = cwd_table(&[40, 41, 42, 43, 44], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let args = HashMap::from([(40, "tmux -C -L overmind-foo-abc new -n web".to_string())]);
+        let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(root, 40);
         assert_eq!(
-            kill_targets(
-                40,
-                42,
-                &procs,
-                &protected,
-                Some("tmux -C -L overmind-foo-abc new -n web")
-            ),
+            kill_targets(root, 42, &procs, &protected),
             vec![40, 41, 42, 43, 44]
         );
+    }
+
+    #[test]
+    fn still_listening_ignores_nested_worktree() {
+        let listeners = vec![listener(1, 3000), listener(2, 3001)];
+        let cwds: HashMap<u32, String> = [(1, "/w/repo"), (2, "/w/repo/.claude/worktrees/x")]
+            .into_iter()
+            .map(|(pid, cwd)| (pid, cwd.to_string()))
+            .collect();
+        let worktrees = vec![
+            "/w/repo".to_string(),
+            "/w/repo/.claude/worktrees/x".to_string(),
+        ];
+        let servers = select_servers(&listeners, &cwds, &HashSet::new(), &worktrees);
+        let target = servers
+            .iter()
+            .find(|s| s.worktree_path == "/w/repo")
+            .unwrap();
+        assert_eq!(target.ports, vec![3000]);
     }
 
     #[test]
@@ -918,9 +941,9 @@ mod tests {
         ]);
         let cwds = cwd_table(&[10, 11, 12], "/w/a");
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(12, &procs, &cwds, &protected, "/w/a");
+        let root = find_root(12, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 11);
-        assert_eq!(kill_targets(root, 12, &procs, &protected, None), vec![12]);
+        assert_eq!(kill_targets(root, 12, &procs, &protected), vec![12]);
     }
 
     #[test]
@@ -988,34 +1011,28 @@ mod tests {
             (306, 302, "rails"),
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(
-            kill_targets(302, 304, &procs, &protected, None),
-            vec![303, 304]
-        );
+        assert_eq!(kill_targets(302, 304, &procs, &protected), vec![303, 304]);
     }
 
     #[test]
     fn shell_root_that_is_the_listener_targets_only_itself() {
         let procs = proc_table(&[(301, 1, "login"), (302, 301, "zsh"), (303, 302, "vim")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(
-            kill_targets(302, 302, &procs, &protected, None),
-            vec![302, 303]
-        );
+        assert_eq!(kill_targets(302, 302, &procs, &protected), vec![302, 303]);
     }
 
     #[test]
     fn broken_chain_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (304, 399, "worker")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert!(kill_targets(302, 304, &procs, &protected, None).is_empty());
+        assert!(kill_targets(302, 304, &procs, &protected).is_empty());
     }
 
     #[test]
     fn protected_start_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (303, 302, "claude"), (304, 303, "node")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert!(kill_targets(302, 303, &procs, &protected, None).is_empty());
+        assert!(kill_targets(302, 303, &procs, &protected).is_empty());
     }
 
     fn tool_available(tool: &str) -> bool {
