@@ -1,0 +1,19 @@
+src/hooks/useServer.ts
+  s_4ba082891c0f56::t_cf9be289acaad7 352-355,361,364-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2ebb6d2d41a23fb89afe52bd4e71a8a1532f9f7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba082891c0f56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a0ca37f-abe4-4c6d-a474-6260443551e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
