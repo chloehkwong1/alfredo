@@ -3,7 +3,7 @@ import { useTabStore } from "../stores/tabStore";
 import { usePrStore } from "../stores/prStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager, stateSourceMap } from "./sessionManager";
-import { deleteWorktree as deleteWorktreeApi, releasePortFor } from "../api";
+import { deleteWorktree as deleteWorktreeApi, releasePortFor, stopDetectedServers } from "../api";
 import { deleteSession as deleteSessionFile } from "./SessionPersistence";
 import type { TabType, DiffTarget, WorkspaceTab } from "../types";
 
@@ -64,8 +64,11 @@ class LifecycleManager {
     repoPath: string,
     worktreeName: string,
   ): Promise<void> {
-    // Snapshot tabs before removing from store
+    // Snapshot tabs and paths before removing from store
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const { worktrees } = useWorkspaceStore.getState();
+    const worktreePath = worktrees.find((w) => w.id === worktreeId)?.path;
+    const worktreePaths = worktrees.map((w) => w.path);
 
     // 1. Remove from all stores atomically (synchronous)
     useWorkspaceStore.getState().removeWorktree(worktreeId);
@@ -84,6 +87,14 @@ class LifecycleManager {
     await releasePortFor({ repoPath, id: worktreeId }).catch((e) =>
       console.warn("[lifecycle] Failed to release port:", worktreeId, e),
     );
+
+    // 3b. Stop servers Alfredo did not start. Once the directory is gone they
+    //     can never be found again. Best-effort: never blocks the delete.
+    if (worktreePath) {
+      await stopDetectedServers(worktreePath, worktreePaths).catch((e) =>
+        console.warn("[lifecycle] Failed to stop detected servers:", worktreeId, e),
+      );
+    }
 
     // 4. Delete git worktree (async, log failure)
     try {

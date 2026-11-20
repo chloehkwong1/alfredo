@@ -326,6 +326,39 @@ describe("lifecycleManager", () => {
       expect(mockReleaseWorktreePort).not.toHaveBeenCalledWith("/repo", "feat-x");
     });
 
+    it("stops detected servers before deleting the worktree", async () => {
+      const callOrder: string[] = [];
+      workspaceStoreState.worktrees = [
+        { id: worktreeId, path: "/wt/feature-branch" },
+        { id: "other", path: "/wt/other" },
+      ];
+      mockStopDetectedServers.mockImplementation(() => {
+        callOrder.push("stopDetectedServers");
+        return Promise.resolve({ stopped: [], stillListening: [] });
+      });
+      mockDeleteWorktreeApi.mockImplementation(() => {
+        callOrder.push("deleteWorktreeApi");
+        return Promise.resolve();
+      });
+
+      await lifecycleManager.removeWorktree(worktreeId, repoPath, worktreeName);
+
+      expect(mockStopDetectedServers).toHaveBeenCalledWith("/wt/feature-branch", [
+        "/wt/feature-branch",
+        "/wt/other",
+      ]);
+      expect(callOrder).toEqual(["stopDetectedServers", "deleteWorktreeApi"]);
+    });
+
+    it("still deletes the worktree when stopping detected servers fails", async () => {
+      workspaceStoreState.worktrees = [{ id: worktreeId, path: "/wt/feature-branch" }];
+      mockStopDetectedServers.mockRejectedValue(new Error("boom"));
+
+      await lifecycleManager.removeWorktree(worktreeId, repoPath, worktreeName);
+
+      expect(mockDeleteWorktreeApi).toHaveBeenCalledWith(repoPath, worktreeName, true);
+    });
+
     it("continues cleanup even when deleteWorktreeApi fails", async () => {
       mockDeleteWorktreeApi.mockRejectedValue(new Error("git error"));
 
