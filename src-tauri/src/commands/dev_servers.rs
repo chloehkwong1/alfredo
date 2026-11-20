@@ -5,9 +5,31 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 
+/// The first number of `/proc/sys/net/ipv4/ip_local_port_range` ("32768\t60999").
+#[cfg(any(target_os = "linux", test))]
+fn parse_port_range_low(raw: &str) -> Option<u16> {
+    raw.split_whitespace().next()?.parse().ok()
+}
+
 /// Ports from here up are the OS's ephemeral range (outgoing connections, agent
-/// helpers), never a dev server.
-const EPHEMERAL_PORT_START: u16 = 49152;
+/// helpers), never a dev server. macOS uses 49152; Linux reads its configured
+/// range (default 32768).
+fn ephemeral_port_start() -> u16 {
+    #[cfg(target_os = "linux")]
+    {
+        static START: std::sync::OnceLock<u16> = std::sync::OnceLock::new();
+        *START.get_or_init(|| {
+            std::fs::read_to_string("/proc/sys/net/ipv4/ip_local_port_range")
+                .ok()
+                .and_then(|raw| parse_port_range_low(&raw))
+                .unwrap_or(32768)
+        })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        49152
+    }
+}
 
 pub struct Listener {
     pub pid: u32,
@@ -121,7 +143,7 @@ fn assign_listeners<'a, 'b>(
 ) -> Vec<(&'a str, &'b Listener)> {
     listeners
         .iter()
-        .filter(|l| !protected.contains(&l.pid) && l.port < EPHEMERAL_PORT_START)
+        .filter(|l| !protected.contains(&l.pid) && l.port < ephemeral_port_start())
         .filter_map(|l| {
             let worktree = cwds
                 .get(&l.pid)
@@ -172,10 +194,34 @@ fn select_servers(
         .collect()
 }
 
-/// Processes a stop must never touch: init, Alfredo itself, its terminal
-/// shells, and every Claude or Codex agent.
+const SHELLS: [&str; 6] = ["sh", "bash", "zsh", "fish", "dash", "login"];
+
+fn is_shell_name(name: &str) -> bool {
+    SHELLS.contains(&proc_basename(name))
+}
+
+/// A Claude or Codex agent, by its process name or its command line: an npm
+/// install runs as `node`, so only the args name it.
+fn is_agent(name: &str, args: Option<&str>) -> bool {
+    if matches!(proc_basename(name), "claude" | "codex") {
+        return true;
+    }
+    let Some(args) = args else {
+        return false;
+    };
+    let argv0 = proc_basename(args.split_whitespace().next().unwrap_or(""));
+    argv0 == "claude"
+        || argv0.starts_with("codex")
+        || args.contains("@anthropic-ai/claude-code")
+        || args.contains("@openai/codex")
+}
+
+/// Processes a stop must never touch: init, Alfredo itself and its ancestors,
+/// its terminal shells, every Claude or Codex agent, and each agent's non-shell
+/// children (its MCP servers).
 fn protected_pids(
     procs: &HashMap<u32, ProcInfo>,
+    args: &HashMap<u32, String>,
     pty_pids: &HashSet<u32>,
     own_pid: u32,
 ) -> HashSet<u32> {
@@ -192,12 +238,18 @@ fn protected_pids(
             _ => break,
         }
     }
+    let agents: HashSet<u32> = procs
+        .iter()
+        .filter(|(pid, info)| is_agent(&info.name, args.get(pid).map(String::as_str)))
+        .map(|(pid, _)| *pid)
+        .collect();
     protected.extend(
         procs
             .iter()
-            .filter(|(_, info)| matches!(proc_basename(&info.name), "claude" | "codex"))
+            .filter(|(_, info)| agents.contains(&info.ppid) && !is_shell_name(&info.name))
             .map(|(pid, _)| *pid),
     );
+    protected.extend(agents);
     protected
 }
 
@@ -220,10 +272,12 @@ fn is_personal_multiplexer(
     args: &HashMap<u32, String>,
     pid: u32,
 ) -> bool {
-    procs
-        .get(&pid)
-        .is_some_and(|info| matches!(proc_basename(&info.name), "tmux" | "screen" | "zellij"))
-        && !args.get(&pid).is_some_and(|a| a.contains("overmind-"))
+    procs.get(&pid).is_some_and(|info| {
+        let base = proc_basename(&info.name).to_ascii_lowercase();
+        ["tmux", "screen", "zellij"]
+            .iter()
+            .any(|m| base.starts_with(m))
+    }) && !args.get(&pid).is_some_and(|a| a.contains("overmind-"))
 }
 
 /// Parse `ps -A -o pid=,args=` into pid -> full command line.
@@ -236,9 +290,34 @@ fn parse_ps_args(raw: &str) -> HashMap<u32, String> {
         .collect()
 }
 
+/// A shell someone types into (`-zsh`, `zsh -il`, `/bin/zsh`): a shell name
+/// whose args carry no `-c` and no script. `zsh -c …` (Claude's Bash tool) and
+/// `sh /tmp/overmind-x/web` (an overmind pane) run a command and are not.
+/// Unknown args count as interactive, the side that kills less.
+fn is_interactive_shell(
+    procs: &HashMap<u32, ProcInfo>,
+    args: &HashMap<u32, String>,
+    pid: u32,
+) -> bool {
+    if !procs
+        .get(&pid)
+        .is_some_and(|info| is_shell_name(&info.name))
+    {
+        return false;
+    }
+    let Some(args) = args.get(&pid) else {
+        return true;
+    };
+    !args.split_whitespace().skip(1).any(|arg| {
+        // `-c`, or a cluster that includes it (`-lc`); long options are flags.
+        !arg.starts_with('-') || (!arg.starts_with("--") && arg[1..].contains('c'))
+    })
+}
+
 /// Walk up from the listener to the top of the process tree that belongs to
 /// this worktree's server. Stops below a protected process, init, an unknown
-/// ancestor, or one whose cwd is outside the worktree.
+/// ancestor, or one whose cwd is outside the worktree, and at the first
+/// interactive shell (which becomes the root, so the shell rule spares it).
 fn find_root(
     listener_pid: u32,
     procs: &HashMap<u32, ProcInfo>,
@@ -250,6 +329,9 @@ fn find_root(
     let worktrees = [worktree.to_string()];
     let mut root = listener_pid;
     for _ in 0..MAX_ROOT_WALK {
+        if is_interactive_shell(procs, args, root) {
+            break;
+        }
         let Some(parent) = procs.get(&root).map(|info| info.ppid) else {
             break;
         };
@@ -281,12 +363,9 @@ fn kill_targets(
     procs: &HashMap<u32, ProcInfo>,
     protected: &HashSet<u32>,
 ) -> Vec<u32> {
-    let root_is_shell = procs.get(&root).is_some_and(|info| {
-        matches!(
-            proc_basename(&info.name),
-            "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
-        )
-    });
+    let root_is_shell = procs
+        .get(&root)
+        .is_some_and(|info| is_shell_name(&info.name));
     let start = if root_is_shell && listener_pid != root {
         let mut job = listener_pid;
         let mut found = false;
@@ -377,14 +456,17 @@ struct Scan {
     listeners: Vec<Listener>,
     cwds: HashMap<u32, String>,
     procs: HashMap<u32, ProcInfo>,
+    args: HashMap<u32, String>,
     protected: HashSet<u32>,
 }
 
-async fn scan(extra_protected: &HashSet<u32>) -> Result<Scan, String> {
+async fn scan() -> Result<Scan, String> {
     let raw = run_capture("lsof", &["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"], true).await?;
     let listeners = parse_lsof_listeners(&raw);
     let cwds = lookup_cwds(listeners.iter().map(|l| l.pid)).await?;
     let procs = parse_ps_table(&run_capture("ps", &["-A", "-o", "pid=,ppid=,comm="], false).await?);
+    // An npm Claude or Codex is named `node`: only its args can protect it.
+    let args = parse_ps_args(&run_capture("ps", &["-A", "-o", "pid=,args="], false).await?);
     let pty_pids: HashSet<u32> = tokio::task::spawn_blocking(|| {
         crate::pty_manager::session_pids_in(std::path::Path::new("/tmp"))
     })
@@ -392,12 +474,12 @@ async fn scan(extra_protected: &HashSet<u32>) -> Result<Scan, String> {
     .map_err(|_| "the pid file scan panicked".to_string())?
     .into_keys()
     .collect();
-    let mut protected = protected_pids(&procs, &pty_pids, std::process::id());
-    protected.extend(extra_protected);
+    let protected = protected_pids(&procs, &args, &pty_pids, std::process::id());
     Ok(Scan {
         listeners,
         cwds,
         procs,
+        args,
         protected,
     })
 }
@@ -433,7 +515,7 @@ async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
         return Vec::new();
     }
     let canon: Vec<String> = originals.keys().cloned().collect();
-    let scan = match scan(&HashSet::new()).await {
+    let scan = match scan().await {
         Ok(scan) => scan,
         Err(reason) => {
             log_once(&FAILURE_LOGGED, &reason);
@@ -511,32 +593,37 @@ pub async fn stop_detected_servers(
         .collect();
     worktrees.push(worktree.clone());
 
-    let registry_pids: HashSet<u32> =
-        match crate::commands::claude_registry::poll_claude_registry().await {
-            Ok(entries) => entries.into_iter().map(|e| e.pid).collect(),
-            Err(e) => {
-                if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
-                    eprintln!(
-                    "[dev-servers] claude registry not consulted (logged once per app run): {e}"
-                );
-                }
-                HashSet::new()
-            }
-        };
-    let mut scan = match scan(&registry_pids).await {
+    let mut scan = match scan().await {
         Ok(scan) => scan,
         Err(reason) => {
             log_once(&FAILURE_LOGGED, &reason);
             return Ok(nothing);
         }
     };
-    let listener_pids = stop_listener_pids(
+    let mut listener_pids = stop_listener_pids(
         &scan.listeners,
         &scan.cwds,
         &scan.protected,
         &worktrees,
         &worktree,
     );
+    if listener_pids.is_empty() {
+        return Ok(nothing);
+    }
+
+    // The registry costs a CLI call, so it is consulted only when there is
+    // something to stop.
+    match crate::commands::claude_registry::poll_claude_registry().await {
+        Ok(entries) => scan.protected.extend(entries.into_iter().map(|e| e.pid)),
+        Err(e) => {
+            if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
+                eprintln!(
+                    "[dev-servers] claude registry not consulted (logged once per app run): {e}"
+                );
+            }
+        }
+    }
+    listener_pids.retain(|pid| !scan.protected.contains(pid));
     if listener_pids.is_empty() {
         return Ok(nothing);
     }
@@ -565,14 +652,6 @@ pub async fn stop_detected_servers(
         }
     }
 
-    let args = match run_capture("ps", &["-A", "-o", "pid=,args="], false).await {
-        Ok(raw) => parse_ps_args(&raw),
-        Err(reason) => {
-            // Without args a tmux root counts as someone's own session: the safe side.
-            log_once(&FAILURE_LOGGED, &reason);
-            HashMap::new()
-        }
-    };
     let mut targets = BTreeSet::new();
     for &listener in &listener_pids {
         let root = find_root(
@@ -580,7 +659,7 @@ pub async fn stop_detected_servers(
             &scan.procs,
             &scan.cwds,
             &scan.protected,
-            &args,
+            &scan.args,
             &worktree,
         );
         targets.extend(kill_targets(root, listener, &scan.procs, &scan.protected));
@@ -745,7 +824,7 @@ mod tests {
             (12, 1, "codex"),
             (13, 1, "ruby"),
         ]);
-        let protected = protected_pids(&procs, &HashSet::from([500]), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::from([500]), 857);
         for pid in [10, 11, 12, 500, 857, 0, 1] {
             assert!(protected.contains(&pid), "{pid} should be protected");
         }
@@ -762,8 +841,12 @@ mod tests {
             (5028, 4601, "sidekiq"),
         ]);
         let cwds = cwd_table(&[4597, 4598, 4601, 4604, 5028], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let args = HashMap::from([(4597, "tmux -C -L overmind-x-1 new".to_string())]);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
+        let args = HashMap::from([
+            (4597, "tmux -C -L overmind-x-1 new".to_string()),
+            (4598, "sh /tmp/overmind-x/web".to_string()),
+            (4601, "sh /tmp/overmind-x/worker".to_string()),
+        ]);
         let root = find_root(4604, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(root, 4597);
         assert_eq!(
@@ -781,8 +864,12 @@ mod tests {
             (190, 52300, "worker"),
         ]);
         let cwds = cwd_table(&[12591, 52209, 52300, 190], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let root = find_root(52300, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
+        let args = HashMap::from([(
+            52209,
+            "/bin/zsh -c source /tmp/claude-shell-snapshot.sh && bin/dev".to_string(),
+        )]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        let root = find_root(52300, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(root, 52209);
         assert_eq!(
             kill_targets(root, 52300, &procs, &protected),
@@ -794,7 +881,7 @@ mod tests {
     fn alfredo_tab_shell_is_protected() {
         let procs = proc_table(&[(700, 1, "zsh"), (701, 700, "puma")]);
         let cwds = cwd_table(&[700, 701], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::from([700]), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::from([700]), 857);
         let root = find_root(701, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 701);
         assert_eq!(kill_targets(root, 701, &procs, &protected), vec![701]);
@@ -810,7 +897,7 @@ mod tests {
         ]);
         let mut cwds = cwd_table(&[300, 301], "/");
         cwds.extend(cwd_table(&[302, 303], "/w/a"));
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         let root = find_root(303, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 302);
         assert_eq!(kill_targets(root, 303, &procs, &protected), vec![303]);
@@ -821,7 +908,7 @@ mod tests {
         let procs = proc_table(&[(50, 1, "zsh"), (51, 50, "puma")]);
         let mut cwds = cwd_table(&[50], "/w/ab");
         cwds.extend(cwd_table(&[51], "/w/a/sub"));
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert_eq!(
             find_root(51, &procs, &cwds, &protected, &HashMap::new(), "/w/a"),
             51
@@ -832,7 +919,7 @@ mod tests {
     fn orphan_worker_is_its_own_root() {
         let procs = proc_table(&[(98306, 1, "worker")]);
         let cwds = cwd_table(&[98306], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         let root = find_root(98306, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 98306);
         assert_eq!(kill_targets(root, 98306, &procs, &protected), vec![98306]);
@@ -846,7 +933,7 @@ mod tests {
             (12, 10, "claude"),
             (13, 12, "node"),
         ]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert_eq!(kill_targets(10, 11, &procs, &protected), vec![10, 11]);
     }
 
@@ -854,7 +941,7 @@ mod tests {
     fn walk_survives_missing_ancestor() {
         let procs = proc_table(&[(20, 19, "puma")]);
         let cwds = cwd_table(&[20], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert_eq!(
             find_root(20, &procs, &cwds, &protected, &HashMap::new(), "/w/a"),
             20
@@ -865,7 +952,7 @@ mod tests {
     fn personal_tmux_pane_shell_survives() {
         let procs = proc_table(&[(40, 1, "tmux"), (41, 40, "zsh"), (42, 41, "puma")]);
         let cwds = cwd_table(&[40, 41, 42], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         let args = HashMap::from([(40, "tmux new -s work".to_string())]);
         let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(root, 41);
@@ -883,7 +970,7 @@ mod tests {
             (45, 44, "vim"),
         ]);
         let cwds = cwd_table(&[40, 41, 42, 43, 44, 45], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         let args = HashMap::from([(40, "tmux new -s work".to_string())]);
         let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(kill_targets(root, 42, &procs, &protected), vec![42]);
@@ -899,8 +986,12 @@ mod tests {
             (44, 43, "sidekiq"),
         ]);
         let cwds = cwd_table(&[40, 41, 42, 43, 44], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
-        let args = HashMap::from([(40, "tmux -C -L overmind-foo-abc new -n web".to_string())]);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
+        let args = HashMap::from([
+            (40, "tmux -C -L overmind-foo-abc new -n web".to_string()),
+            (41, "zsh /tmp/overmind-foo-abc/web".to_string()),
+            (43, "zsh /tmp/overmind-foo-abc/worker".to_string()),
+        ]);
         let root = find_root(42, &procs, &cwds, &protected, &args, "/w/a");
         assert_eq!(root, 40);
         assert_eq!(
@@ -940,7 +1031,7 @@ mod tests {
             (12, 11, "puma"),
         ]);
         let cwds = cwd_table(&[10, 11, 12], "/w/a");
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         let root = find_root(12, &procs, &cwds, &protected, &HashMap::new(), "/w/a");
         assert_eq!(root, 11);
         assert_eq!(kill_targets(root, 12, &procs, &protected), vec![12]);
@@ -955,7 +1046,7 @@ mod tests {
             (857, 201, "alfredo"),
             (900, 1, "puma"),
         ]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         for pid in [200, 201, 857] {
             assert!(protected.contains(&pid));
         }
@@ -1010,29 +1101,186 @@ mod tests {
             (305, 302, "vim"),
             (306, 302, "rails"),
         ]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert_eq!(kill_targets(302, 304, &procs, &protected), vec![303, 304]);
     }
 
     #[test]
     fn shell_root_that_is_the_listener_targets_only_itself() {
         let procs = proc_table(&[(301, 1, "login"), (302, 301, "zsh"), (303, 302, "vim")]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert_eq!(kill_targets(302, 302, &procs, &protected), vec![302, 303]);
     }
 
     #[test]
     fn broken_chain_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (304, 399, "worker")]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert!(kill_targets(302, 304, &procs, &protected).is_empty());
     }
 
     #[test]
     fn protected_start_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (303, 302, "claude"), (304, 303, "node")]);
-        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
         assert!(kill_targets(302, 303, &procs, &protected).is_empty());
+    }
+
+    #[test]
+    fn nvim_terminal_server_spares_nvim() {
+        let procs = proc_table(&[
+            (302, 1, "-zsh"),
+            (303, 302, "nvim"),
+            (304, 303, "zsh"),
+            (305, 304, "puma"),
+        ]);
+        let cwds = cwd_table(&[302, 303, 304, 305], "/w/a");
+        let args = HashMap::from([
+            (302, "-zsh".to_string()),
+            (303, "nvim .".to_string()),
+            (304, "/bin/zsh".to_string()),
+            (305, "puma 6.4.2 (tcp://0.0.0.0:3000)".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        let root = find_root(305, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(root, 304);
+        assert_eq!(kill_targets(root, 305, &procs, &protected), vec![305]);
+    }
+
+    #[test]
+    fn login_dash_zsh_is_a_boundary() {
+        let procs = proc_table(&[
+            (301, 1, "login"),
+            (302, 301, "-zsh"),
+            (303, 302, "nix"),
+            (304, 303, "zsh"),
+            (305, 304, "puma"),
+        ]);
+        let cwds = cwd_table(&[301, 302, 303, 304, 305], "/w/a");
+        let args = HashMap::from([
+            (
+                301,
+                "login -pfl chloe /bin/zsh -c exec -la zsh /bin/zsh".to_string(),
+            ),
+            (302, "-zsh".to_string()),
+            (303, "nix develop".to_string()),
+            (304, "zsh -il".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        // The nix shell is the first interactive shell: nix and the login shell survive.
+        assert_eq!(
+            find_root(305, &procs, &cwds, &protected, &args, "/w/a"),
+            304
+        );
+        // Without the inner shell, the walk stops at the login shell `-zsh`.
+        let procs = proc_table(&[(301, 1, "login"), (302, 301, "-zsh"), (305, 302, "puma")]);
+        assert_eq!(
+            find_root(305, &procs, &cwds, &protected, &args, "/w/a"),
+            302
+        );
+        assert_eq!(kill_targets(302, 305, &procs, &protected), vec![305]);
+    }
+
+    #[test]
+    fn shell_with_unknown_args_is_a_boundary() {
+        let procs = proc_table(&[(40, 1, "make"), (41, 40, "sh"), (42, 41, "puma")]);
+        let cwds = cwd_table(&[40, 41, 42], "/w/a");
+        let protected = protected_pids(&procs, &HashMap::new(), &HashSet::new(), 857);
+        assert_eq!(
+            find_root(42, &procs, &cwds, &protected, &HashMap::new(), "/w/a"),
+            41
+        );
+    }
+
+    #[test]
+    fn protects_npm_claude_and_codex_by_args() {
+        let procs = proc_table(&[
+            (10, 1, "node"),
+            (11, 1, "node"),
+            (12, 1, "node"),
+            (13, 1, "codex-aarch64-apple-darwin"),
+            (14, 1, "node"),
+        ]);
+        let args = HashMap::from([
+            (
+                10,
+                "node /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/cli.js".to_string(),
+            ),
+            (
+                11,
+                "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js".to_string(),
+            ),
+            (12, "claude --resume abc".to_string()),
+            (
+                13,
+                "/opt/homebrew/bin/codex-aarch64-apple-darwin exec".to_string(),
+            ),
+            (14, "node server.js".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        for pid in [10, 11, 12, 13] {
+            assert!(protected.contains(&pid), "{pid} should be protected");
+        }
+        assert!(!protected.contains(&14));
+    }
+
+    #[test]
+    fn mcp_child_of_claude_is_not_a_server() {
+        let procs = proc_table(&[
+            (10, 1, "node"),
+            (11, 10, "node"),
+            (12, 10, "zsh"),
+            (13, 12, "puma"),
+        ]);
+        let args = HashMap::from([
+            (
+                10,
+                "node /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/cli.js".to_string(),
+            ),
+            (11, "node /w/a/node_modules/.bin/mcp-server".to_string()),
+            (12, "/bin/zsh -c bin/dev".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        let cwds = cwd_table(&[10, 11, 12, 13], "/w/a");
+        let servers = select_servers(
+            &[listener(11, 3845), listener(13, 3000)],
+            &cwds,
+            &protected,
+            &["/w/a".to_string()],
+        );
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].ports, vec![3000]);
+        assert!(kill_targets(11, 11, &procs, &protected).is_empty());
+        // The Bash tool's shell is not an MCP child: its server is still stopped.
+        let root = find_root(13, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(root, 12);
+        assert_eq!(kill_targets(root, 13, &procs, &protected), vec![13]);
+    }
+
+    #[test]
+    fn parse_port_range_low_reads_first_number() {
+        assert_eq!(parse_port_range_low("32768\t60999\n"), Some(32768));
+        assert_eq!(parse_port_range_low("1024 65535"), Some(1024));
+        assert_eq!(parse_port_range_low(""), None);
+        assert_eq!(parse_port_range_low("abc 1"), None);
+    }
+
+    #[test]
+    fn multiplexer_match_is_case_insensitive_prefix() {
+        let procs = proc_table(&[
+            (40, 1, "tmux: server"),
+            (41, 1, "SCREEN"),
+            (42, 1, "zellij"),
+            (43, 1, "tmuxinator"),
+            (44, 1, "zsh"),
+        ]);
+        let args = HashMap::new();
+        for pid in [40, 41, 42, 43] {
+            assert!(is_personal_multiplexer(&procs, &args, pid), "{pid}");
+        }
+        assert!(!is_personal_multiplexer(&procs, &args, 44));
+        let overmind = HashMap::from([(40, "tmux: server (/tmp/overmind-x/tmux)".to_string())]);
+        assert!(!is_personal_multiplexer(&procs, &overmind, 40));
     }
 
     fn tool_available(tool: &str) -> bool {
