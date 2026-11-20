@@ -201,18 +201,29 @@ fn kill_targets(
             "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
         )
     });
-    let start = if root_is_shell {
+    let start = if root_is_shell && listener_pid != root {
         let mut job = listener_pid;
+        let mut found = false;
         for _ in 0..MAX_ROOT_WALK {
             match procs.get(&job) {
-                Some(info) if info.ppid != root => job = info.ppid,
-                _ => break,
+                Some(info) if info.ppid == root => {
+                    found = true;
+                    break;
+                }
+                Some(info) => job = info.ppid,
+                None => break,
             }
+        }
+        if !found {
+            return Vec::new();
         }
         job
     } else {
         root
     };
+    if protected.contains(&start) {
+        return Vec::new();
+    }
 
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for (pid, info) in procs {
@@ -227,9 +238,7 @@ fn kill_targets(
             }
         }
     }
-    if !protected.contains(&start) {
-        targets.insert(start);
-    }
+    targets.insert(start);
     let mut targets: Vec<u32> = targets.into_iter().collect();
     targets.sort_unstable();
     targets
@@ -492,5 +501,26 @@ mod tests {
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         assert_eq!(kill_targets(302, 304, &procs, &protected), vec![303, 304]);
+    }
+
+    #[test]
+    fn shell_root_that_is_the_listener_targets_only_itself() {
+        let procs = proc_table(&[(301, 1, "login"), (302, 301, "zsh"), (303, 302, "vim")]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert_eq!(kill_targets(302, 302, &procs, &protected), vec![302, 303]);
+    }
+
+    #[test]
+    fn broken_chain_returns_nothing() {
+        let procs = proc_table(&[(302, 1, "zsh"), (304, 399, "worker")]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert!(kill_targets(302, 304, &procs, &protected).is_empty());
+    }
+
+    #[test]
+    fn protected_start_returns_nothing() {
+        let procs = proc_table(&[(302, 1, "zsh"), (303, 302, "claude"), (304, 303, "node")]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert!(kill_targets(302, 303, &procs, &protected).is_empty());
     }
 }
