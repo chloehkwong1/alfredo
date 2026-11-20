@@ -10,6 +10,7 @@ pub mod branch;
 pub mod checks;
 pub mod clipboard;
 pub mod claude_registry;
+pub mod dev_servers;
 pub mod config;
 pub mod diff;
 pub mod diff_range;
