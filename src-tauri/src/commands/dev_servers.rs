@@ -36,7 +36,9 @@ fn parse_lsof_listeners(raw: &str) -> Vec<Listener> {
         if let Some(value) = line.strip_prefix('p') {
             pid = value.parse().ok();
         } else if let Some(name) = line.strip_prefix('n') {
-            let port = name.rsplit_once(':').and_then(|(_, port)| port.parse().ok());
+            let port = name
+                .rsplit_once(':')
+                .and_then(|(_, port)| port.parse().ok());
             if let (Some(pid), Some(port)) = (pid, port) {
                 listeners.push(Listener { pid, port });
             }
@@ -99,10 +101,50 @@ fn worktree_for_cwd<'a>(cwd: &str, worktrees: &'a [String]) -> Option<&'a str> {
         .iter()
         .filter(|worktree| {
             let root = worktree.trim_end_matches('/');
-            cwd == root || cwd.strip_prefix(root).is_some_and(|rest| rest.starts_with('/'))
+            cwd == root
+                || cwd
+                    .strip_prefix(root)
+                    .is_some_and(|rest| rest.starts_with('/'))
         })
         .max_by_key(|worktree| worktree.trim_end_matches('/').len())
         .map(String::as_str)
+}
+
+/// Each stoppable listener paired with the worktree it belongs to (the longest
+/// match among `worktrees`). Protected pids, ephemeral ports, pids with no known
+/// cwd and cwds outside every worktree are dropped.
+fn assign_listeners<'a, 'b>(
+    listeners: &'b [Listener],
+    cwds: &HashMap<u32, String>,
+    protected: &HashSet<u32>,
+    worktrees: &'a [String],
+) -> Vec<(&'a str, &'b Listener)> {
+    listeners
+        .iter()
+        .filter(|l| !protected.contains(&l.pid) && l.port < EPHEMERAL_PORT_START)
+        .filter_map(|l| {
+            let worktree = cwds
+                .get(&l.pid)
+                .and_then(|cwd| worktree_for_cwd(cwd, worktrees))?;
+            Some((worktree, l))
+        })
+        .collect()
+}
+
+/// Pids to stop for `target`: its own listeners only, never those of a worktree
+/// nested inside it.
+fn stop_listener_pids(
+    listeners: &[Listener],
+    cwds: &HashMap<u32, String>,
+    protected: &HashSet<u32>,
+    worktrees: &[String],
+    target: &str,
+) -> BTreeSet<u32> {
+    assign_listeners(listeners, cwds, protected, worktrees)
+        .into_iter()
+        .filter(|(worktree, _)| *worktree == target)
+        .map(|(_, l)| l.pid)
+        .collect()
 }
 
 /// Group listeners by the worktree their process runs in. Protected pids,
@@ -115,17 +157,11 @@ fn select_servers(
     worktrees: &[String],
 ) -> Vec<DetectedServer> {
     let mut by_worktree: BTreeMap<&str, BTreeSet<u16>> = BTreeMap::new();
-    for listener in listeners {
-        if protected.contains(&listener.pid) || listener.port >= EPHEMERAL_PORT_START {
-            continue;
-        }
-        let Some(worktree) = cwds
-            .get(&listener.pid)
-            .and_then(|cwd| worktree_for_cwd(cwd, worktrees))
-        else {
-            continue;
-        };
-        by_worktree.entry(worktree).or_default().insert(listener.port);
+    for (worktree, listener) in assign_listeners(listeners, cwds, protected, worktrees) {
+        by_worktree
+            .entry(worktree)
+            .or_default()
+            .insert(listener.port);
     }
     by_worktree
         .into_iter()
@@ -145,6 +181,17 @@ fn protected_pids(
 ) -> HashSet<u32> {
     let mut protected: HashSet<u32> = pty_pids.iter().copied().collect();
     protected.extend([0, 1, own_pid]);
+    // Under `npm run tauri dev` Alfredo's parents (npm, cargo) must survive too.
+    let mut pid = own_pid;
+    for _ in 0..MAX_ROOT_WALK {
+        match procs.get(&pid).map(|info| info.ppid) {
+            Some(parent) if parent > 1 => {
+                protected.insert(parent);
+                pid = parent;
+            }
+            _ => break,
+        }
+    }
     protected.extend(
         procs
             .iter()
@@ -155,6 +202,25 @@ fn protected_pids(
 }
 
 const MAX_ROOT_WALK: usize = 32;
+
+/// A macOS app (an editor or terminal launched from a worktree): never a root
+/// and never a target, except as the listener itself (Homebrew's python is a
+/// `Python.app` and is a legitimate server).
+fn is_app_bundle(procs: &HashMap<u32, ProcInfo>, pid: u32) -> bool {
+    procs
+        .get(&pid)
+        .is_some_and(|info| info.name.contains(".app/"))
+}
+
+/// Parse `ps -A -o pid=,args=` into pid -> full command line.
+fn parse_ps_args(raw: &str) -> HashMap<u32, String> {
+    raw.lines()
+        .filter_map(|line| {
+            let (pid, args) = line.trim_start().split_once(char::is_whitespace)?;
+            Some((pid.parse().ok()?, args.trim().to_string()))
+        })
+        .collect()
+}
 
 /// Walk up from the listener to the top of the process tree that belongs to
 /// this worktree's server. Stops below a protected process, init, an unknown
@@ -176,7 +242,7 @@ fn find_root(
             && cwds
                 .get(&parent)
                 .is_some_and(|cwd| worktree_for_cwd(cwd, &worktrees).is_some());
-        if parent <= 1 || protected.contains(&parent) || !inside {
+        if parent <= 1 || protected.contains(&parent) || is_app_bundle(procs, parent) || !inside {
             break;
         }
         root = parent;
@@ -185,6 +251,8 @@ fn find_root(
 }
 
 /// What to signal to stop the server behind `listener_pid` under `root`.
+/// `root_args` is the root's command line, if known: a tmux, screen or zellij
+/// root is treated like a shell (someone's own session) unless it is overmind's.
 /// A shell root is kept, along with its other jobs: only the job on the
 /// listener's ancestor chain is stopped. Any other root is stopped with all
 /// of its descendants. Protected processes and their subtrees are always
@@ -194,13 +262,15 @@ fn kill_targets(
     listener_pid: u32,
     procs: &HashMap<u32, ProcInfo>,
     protected: &HashSet<u32>,
+    root_args: Option<&str>,
 ) -> Vec<u32> {
-    let root_is_shell = procs.get(&root).is_some_and(|info| {
-        matches!(
-            proc_basename(&info.name),
-            "sh" | "bash" | "zsh" | "fish" | "dash" | "login"
-        )
-    });
+    let root_is_shell = procs
+        .get(&root)
+        .is_some_and(|info| match proc_basename(&info.name) {
+            "sh" | "bash" | "zsh" | "fish" | "dash" | "login" => true,
+            "tmux" | "screen" | "zellij" => !root_args.is_some_and(|a| a.contains("overmind-")),
+            _ => false,
+        });
     let start = if root_is_shell && listener_pid != root {
         let mut job = listener_pid;
         let mut found = false;
@@ -221,7 +291,7 @@ fn kill_targets(
     } else {
         root
     };
-    if protected.contains(&start) {
+    if protected.contains(&start) || (start != listener_pid && is_app_bundle(procs, start)) {
         return Vec::new();
     }
 
@@ -233,7 +303,10 @@ fn kill_targets(
     let mut stack = vec![start];
     while let Some(pid) = stack.pop() {
         for &child in children.get(&pid).into_iter().flatten() {
-            if !protected.contains(&child) && targets.insert(child) {
+            if !protected.contains(&child)
+                && (child == listener_pid || !is_app_bundle(procs, child))
+                && targets.insert(child)
+            {
                 stack.push(child);
             }
         }
@@ -313,11 +386,15 @@ async fn scan(extra_protected: &HashSet<u32>) -> Result<Scan, String> {
     })
 }
 
-fn canonical(path: &str) -> String {
-    std::fs::canonicalize(path)
-        .ok()
-        .and_then(|p| p.to_str().map(str::to_string))
-        .unwrap_or_else(|| path.to_string())
+/// The canonical spelling of an existing directory other than `/`; `None` for
+/// anything else (empty, root, missing), which would otherwise match every
+/// process on the machine.
+fn canonical_dir(path: &str) -> Option<String> {
+    let canonical = std::fs::canonicalize(path).ok()?;
+    if !canonical.is_dir() || canonical == std::path::Path::new("/") {
+        return None;
+    }
+    canonical.to_str().map(str::to_string)
 }
 
 fn log_once(seen: &AtomicBool, reason: &str) {
@@ -332,7 +409,12 @@ async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
     static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
     let mut originals: HashMap<String, Vec<&String>> = HashMap::new();
     for path in worktree_paths {
-        originals.entry(canonical(path)).or_default().push(path);
+        if let Some(canonical) = canonical_dir(path) {
+            originals.entry(canonical).or_default().push(path);
+        }
+    }
+    if originals.is_empty() {
+        return Vec::new();
     }
     let canon: Vec<String> = originals.keys().cloned().collect();
     let scan = match scan(&HashSet::new()).await {
@@ -393,15 +475,25 @@ fn signal(pids: &[u32], sig: i32) {
 /// 3 s of grace, then SIGKILL. Reports what was signalled and any port still
 /// listening afterwards. Nothing listening is success with nothing stopped.
 #[tauri::command]
-pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetectedResult, AppError> {
+pub async fn stop_detected_servers(
+    worktree_path: String,
+    worktree_paths: Vec<String>,
+) -> Result<StopDetectedResult, AppError> {
     static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
     static REGISTRY_FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
     let nothing = StopDetectedResult {
         stopped: Vec::new(),
         still_listening: Vec::new(),
     };
-    let worktree = canonical(&worktree_path);
-    let worktrees = [worktree.clone()];
+    let Some(worktree) = canonical_dir(&worktree_path) else {
+        return Ok(nothing);
+    };
+    // Every known worktree, so a nested one's servers are left alone.
+    let mut worktrees: Vec<String> = worktree_paths
+        .iter()
+        .filter_map(|p| canonical_dir(p))
+        .collect();
+    worktrees.push(worktree.clone());
 
     let registry_pids: HashSet<u32> = match crate::commands::claude_registry::poll_claude_registry()
         .await
@@ -409,7 +501,9 @@ pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetected
         Ok(entries) => entries.into_iter().map(|e| e.pid).collect(),
         Err(e) => {
             if crate::commands::claude_registry::first_failure(&REGISTRY_FAILURE_LOGGED) {
-                eprintln!("[dev-servers] claude registry not consulted (logged once per app run): {e}");
+                eprintln!(
+                    "[dev-servers] claude registry not consulted (logged once per app run): {e}"
+                );
             }
             HashSet::new()
         }
@@ -421,17 +515,13 @@ pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetected
             return Ok(nothing);
         }
     };
-    let listener_pids: BTreeSet<u32> = scan
-        .listeners
-        .iter()
-        .filter(|l| !scan.protected.contains(&l.pid) && l.port < EPHEMERAL_PORT_START)
-        .filter(|l| {
-            scan.cwds
-                .get(&l.pid)
-                .is_some_and(|cwd| worktree_for_cwd(cwd, &worktrees).is_some())
-        })
-        .map(|l| l.pid)
-        .collect();
+    let listener_pids = stop_listener_pids(
+        &scan.listeners,
+        &scan.cwds,
+        &scan.protected,
+        &worktrees,
+        &worktree,
+    );
     if listener_pids.is_empty() {
         return Ok(nothing);
     }
@@ -460,10 +550,30 @@ pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetected
         }
     }
 
+    let args = match run_capture("ps", &["-A", "-o", "pid=,args="], false).await {
+        Ok(raw) => parse_ps_args(&raw),
+        Err(reason) => {
+            // Without args a tmux root counts as someone's own session: the safe side.
+            log_once(&FAILURE_LOGGED, &reason);
+            HashMap::new()
+        }
+    };
     let mut targets = BTreeSet::new();
     for &listener in &listener_pids {
-        let root = find_root(listener, &scan.procs, &scan.cwds, &scan.protected, &worktree);
-        targets.extend(kill_targets(root, listener, &scan.procs, &scan.protected));
+        let root = find_root(
+            listener,
+            &scan.procs,
+            &scan.cwds,
+            &scan.protected,
+            &worktree,
+        );
+        targets.extend(kill_targets(
+            root,
+            listener,
+            &scan.procs,
+            &scan.protected,
+            args.get(&root).map(String::as_str),
+        ));
     }
     let targets: Vec<u32> = targets.into_iter().collect();
     signal(&targets, libc::SIGTERM);
@@ -476,7 +586,7 @@ pub async fn stop_detected_servers(worktree_path: String) -> Result<StopDetected
     let survivors: Vec<u32> = targets.iter().copied().filter(|&p| is_alive(p)).collect();
     signal(&survivors, libc::SIGKILL);
 
-    let still_listening = detect(std::slice::from_ref(&worktree_path))
+    let still_listening = detect(std::slice::from_ref(&worktree))
         .await
         .into_iter()
         .flat_map(|server| server.ports)
@@ -539,8 +649,14 @@ mod tests {
             worktree_for_cwd("/w/florence/nested/app", &worktrees),
             Some("/w/florence/nested")
         );
-        assert_eq!(worktree_for_cwd("/w/florence.worktrees/x", &worktrees), None);
-        assert_eq!(worktree_for_cwd("/w/florence", &worktrees), Some("/w/florence"));
+        assert_eq!(
+            worktree_for_cwd("/w/florence.worktrees/x", &worktrees),
+            None
+        );
+        assert_eq!(
+            worktree_for_cwd("/w/florence", &worktrees),
+            Some("/w/florence")
+        );
     }
 
     #[test]
@@ -638,7 +754,13 @@ mod tests {
         let root = find_root(4604, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 4597);
         assert_eq!(
-            kill_targets(root, 4604, &procs, &protected),
+            kill_targets(
+                root,
+                4604,
+                &procs,
+                &protected,
+                Some("tmux -C -L overmind-x-1 new")
+            ),
             vec![4597, 4598, 4601, 4604, 5028]
         );
     }
@@ -655,7 +777,10 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(52300, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 52209);
-        assert_eq!(kill_targets(root, 52300, &procs, &protected), vec![190, 52300]);
+        assert_eq!(
+            kill_targets(root, 52300, &procs, &protected, None),
+            vec![190, 52300]
+        );
     }
 
     #[test]
@@ -665,7 +790,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::from([700]), 857);
         let root = find_root(701, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 701);
-        assert_eq!(kill_targets(root, 701, &procs, &protected), vec![701]);
+        assert_eq!(kill_targets(root, 701, &procs, &protected, None), vec![701]);
     }
 
     #[test]
@@ -681,7 +806,7 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(303, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 302);
-        assert_eq!(kill_targets(root, 303, &procs, &protected), vec![303]);
+        assert_eq!(kill_targets(root, 303, &procs, &protected, None), vec![303]);
     }
 
     #[test]
@@ -700,7 +825,10 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(98306, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 98306);
-        assert_eq!(kill_targets(root, 98306, &procs, &protected), vec![98306]);
+        assert_eq!(
+            kill_targets(root, 98306, &procs, &protected, None),
+            vec![98306]
+        );
     }
 
     #[test]
@@ -712,7 +840,10 @@ mod tests {
             (13, 12, "node"),
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(kill_targets(10, 11, &procs, &protected), vec![10, 11]);
+        assert_eq!(
+            kill_targets(10, 11, &procs, &protected, Some("tmux -L overmind-x")),
+            vec![10, 11]
+        );
     }
 
     #[test]
@@ -730,7 +861,121 @@ mod tests {
         let protected = protected_pids(&procs, &HashSet::new(), 857);
         let root = find_root(42, &procs, &cwds, &protected, "/w/a");
         assert_eq!(root, 40);
-        assert!(kill_targets(root, 42, &procs, &protected).contains(&40));
+        assert_eq!(
+            kill_targets(root, 42, &procs, &protected, Some("tmux new -s work")),
+            vec![41, 42]
+        );
+    }
+
+    #[test]
+    fn personal_tmux_root_is_job_only() {
+        let procs = proc_table(&[
+            (40, 1, "tmux"),
+            (41, 40, "zsh"),
+            (42, 41, "puma"),
+            (43, 40, "zsh"),
+            (44, 43, "vim"),
+        ]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert_eq!(
+            kill_targets(40, 42, &procs, &protected, Some("tmux new -s work")),
+            vec![41, 42]
+        );
+    }
+
+    #[test]
+    fn overmind_tmux_root_is_killed_whole() {
+        let procs = proc_table(&[
+            (40, 1, "tmux"),
+            (41, 40, "zsh"),
+            (42, 41, "puma"),
+            (43, 40, "zsh"),
+            (44, 43, "sidekiq"),
+        ]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        assert_eq!(
+            kill_targets(
+                40,
+                42,
+                &procs,
+                &protected,
+                Some("tmux -C -L overmind-foo-abc new -n web")
+            ),
+            vec![40, 41, 42, 43, 44]
+        );
+    }
+
+    #[test]
+    fn app_bundle_is_never_a_root() {
+        let procs = proc_table(&[
+            (
+                10,
+                1,
+                "/Applications/Visual Studio Code.app/Contents/MacOS/Electron",
+            ),
+            (11, 10, "zsh"),
+            (12, 11, "puma"),
+        ]);
+        let cwds = cwd_table(&[10, 11, 12], "/w/a");
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        let root = find_root(12, &procs, &cwds, &protected, "/w/a");
+        assert_eq!(root, 11);
+        assert_eq!(kill_targets(root, 12, &procs, &protected, None), vec![12]);
+    }
+
+    #[test]
+    fn protects_alfredo_ancestors() {
+        let procs = proc_table(&[
+            (1, 0, "launchd"),
+            (200, 1, "npm"),
+            (201, 200, "cargo"),
+            (857, 201, "alfredo"),
+            (900, 1, "puma"),
+        ]);
+        let protected = protected_pids(&procs, &HashSet::new(), 857);
+        for pid in [200, 201, 857] {
+            assert!(protected.contains(&pid));
+        }
+        assert!(!protected.contains(&900));
+    }
+
+    #[test]
+    fn stop_filter_skips_nested_worktree_listener() {
+        let listeners = vec![listener(1, 3000), listener(2, 3001)];
+        let cwds: HashMap<u32, String> = [(1, "/w/repo"), (2, "/w/repo/.claude/worktrees/x")]
+            .into_iter()
+            .map(|(pid, cwd)| (pid, cwd.to_string()))
+            .collect();
+        let worktrees = vec![
+            "/w/repo".to_string(),
+            "/w/repo/.claude/worktrees/x".to_string(),
+        ];
+        let pids = stop_listener_pids(&listeners, &cwds, &HashSet::new(), &worktrees, "/w/repo");
+        assert_eq!(pids, BTreeSet::from([1]));
+    }
+
+    #[test]
+    fn parses_ps_args() {
+        let args = parse_ps_args("  40     tmux new -s work\n");
+        assert_eq!(args[&40], "tmux new -s work");
+    }
+
+    #[tokio::test]
+    async fn stop_refuses_root_and_empty_paths() {
+        for path in ["", "/"] {
+            let result = stop_detected_servers(path.to_string(), vec![path.to_string()])
+                .await
+                .unwrap();
+            assert!(result.stopped.is_empty() && result.still_listening.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn detect_skips_root_path() {
+        assert!(detect_dev_servers(vec!["/".to_string()])
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -743,28 +988,34 @@ mod tests {
             (306, 302, "rails"),
         ]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(kill_targets(302, 304, &procs, &protected), vec![303, 304]);
+        assert_eq!(
+            kill_targets(302, 304, &procs, &protected, None),
+            vec![303, 304]
+        );
     }
 
     #[test]
     fn shell_root_that_is_the_listener_targets_only_itself() {
         let procs = proc_table(&[(301, 1, "login"), (302, 301, "zsh"), (303, 302, "vim")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert_eq!(kill_targets(302, 302, &procs, &protected), vec![302, 303]);
+        assert_eq!(
+            kill_targets(302, 302, &procs, &protected, None),
+            vec![302, 303]
+        );
     }
 
     #[test]
     fn broken_chain_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (304, 399, "worker")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert!(kill_targets(302, 304, &procs, &protected).is_empty());
+        assert!(kill_targets(302, 304, &procs, &protected, None).is_empty());
     }
 
     #[test]
     fn protected_start_returns_nothing() {
         let procs = proc_table(&[(302, 1, "zsh"), (303, 302, "claude"), (304, 303, "node")]);
         let protected = protected_pids(&procs, &HashSet::new(), 857);
-        assert!(kill_targets(302, 303, &procs, &protected).is_empty());
+        assert!(kill_targets(302, 303, &procs, &protected, None).is_empty());
     }
 
     fn tool_available(tool: &str) -> bool {
@@ -788,7 +1039,13 @@ mod tests {
             }
         };
         let child = std::process::Command::new("python3")
-            .args(["-m", "http.server", &port.to_string(), "--bind", "127.0.0.1"])
+            .args([
+                "-m",
+                "http.server",
+                &port.to_string(),
+                "--bind",
+                "127.0.0.1",
+            ])
             .current_dir(dir)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -800,7 +1057,9 @@ mod tests {
     async fn wait_detected(path: &str, port: u16) {
         for _ in 0..50 {
             let servers = detect_dev_servers(vec![path.to_string()]).await.unwrap();
-            if servers.len() == 1 && servers[0].ports == vec![port] && servers[0].worktree_path == path
+            if servers.len() == 1
+                && servers[0].ports == vec![port]
+                && servers[0].worktree_path == path
             {
                 return;
             }
@@ -813,7 +1072,9 @@ mod tests {
         let path = dir.to_str().unwrap().to_string();
         let (mut child, port) = spawn_server(dir).expect("could not start python http.server");
         wait_detected(&path, port).await;
-        let result = stop_detected_servers(path.clone()).await.unwrap();
+        let result = stop_detected_servers(path.clone(), vec![path.clone()])
+            .await
+            .unwrap();
         assert!(result.stopped.contains(&child.id()), "{:?}", result.stopped);
         assert!(result.still_listening.is_empty());
         for _ in 0..10 {
@@ -823,7 +1084,9 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         assert!(child.try_wait().unwrap().is_some());
-        let again = stop_detected_servers(path).await.unwrap();
+        let again = stop_detected_servers(path.clone(), vec![path])
+            .await
+            .unwrap();
         assert!(again.stopped.is_empty() && again.still_listening.is_empty());
         let _ = child.wait();
     }
@@ -859,7 +1122,9 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().to_str().unwrap().to_string();
         for _ in 0..2 {
-            let result = stop_detected_servers(path.clone()).await.unwrap();
+            let result = stop_detected_servers(path.clone(), vec![path.clone()])
+                .await
+                .unwrap();
             assert!(result.stopped.is_empty() && result.still_listening.is_empty());
         }
     }

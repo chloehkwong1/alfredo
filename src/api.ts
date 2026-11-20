@@ -761,8 +761,12 @@ export function detectDevServers(
 
 export function stopDetectedServers(
   worktreePath: string,
+  worktreePaths: string[],
 ): Promise<StopDetectedResult> {
-  return invoke<StopDetectedResult>("stop_detected_servers", { worktreePath });
+  return invoke<StopDetectedResult>("stop_detected_servers", {
+    worktreePath,
+    worktreePaths,
+  });
 }
 
 /** Eagerly persist one tab's discovered Claude session id (write-through, Rust-side). */
