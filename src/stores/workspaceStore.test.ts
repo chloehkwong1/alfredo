@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useWorkspaceStore } from "./workspaceStore";
+import { useWorkspaceStore, selectServerPort, selectIsServerRunning } from "./workspaceStore";
 import { useTabStore } from "./tabStore";
 import { useLayoutStore } from "./layoutStore";
 import { usePrStore } from "./prStore";
@@ -1463,5 +1463,55 @@ describe("worktree multi-select", () => {
       expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-1"]);
       expect(store.getState().selectionColumn).toBe("inProgress");
     });
+  });
+});
+
+describe("detectedServers", () => {
+  it("setDetectedServers is a no-op for equal content", () => {
+    const store = useWorkspaceStore;
+    store.getState().setDetectedServers({ a: [3011] });
+    const spy = vi.fn();
+    const unsubscribe = store.subscribe(spy);
+    store.getState().setDetectedServers({ a: [3011] });
+    unsubscribe();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("setDetectedServers replaces changed content", () => {
+    const store = useWorkspaceStore;
+    store.getState().setDetectedServers({ a: [3011] });
+    store.getState().setDetectedServers({ b: [3007] });
+    expect(store.getState().detectedServers).toEqual({ b: [3007] });
+  });
+
+  it("selectServerPort prefers the server tab's port", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      runningServers: { a: { sessionId: "s", tabId: "t", port: 3001 } },
+      detectedServers: { a: [3011] },
+    });
+    expect(selectServerPort(store.getState(), "a")).toBe(3001);
+    store.setState({ runningServers: {} });
+    expect(selectServerPort(store.getState(), "a")).toBe(3011);
+    store.setState({ detectedServers: {} });
+    expect(selectServerPort(store.getState(), "a")).toBeUndefined();
+  });
+
+  it("selectIsServerRunning is true for a detected-only server", () => {
+    const store = useWorkspaceStore;
+    store.setState({ runningServers: {}, detectedServers: { a: [3011] } });
+    expect(selectIsServerRunning(store.getState(), "a")).toBe(true);
+    store.setState({ detectedServers: { a: [] } });
+    expect(selectIsServerRunning(store.getState(), "a")).toBe(false);
+  });
+
+  it("removing a worktree drops its detected entry", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree(), makeWorktree({ id: "wt-2" })],
+      detectedServers: { "wt-1": [3011], "wt-2": [3007] },
+    });
+    store.getState().removeWorktree("wt-1");
+    expect(store.getState().detectedServers).toEqual({ "wt-2": [3007] });
   });
 });

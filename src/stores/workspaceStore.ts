@@ -108,6 +108,8 @@ interface WorkspaceState {
   deleteAfterDays: number;
   /** Tracks running dev servers per worktree. Keyed by worktreeId. */
   runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
+  /** Dev servers found listening in a worktree, whoever started them. Keyed by worktreeId, ports ascending; worktrees with none are absent. */
+  detectedServers: Record<string, number[]>;
   /** Repo paths where GitHub auth has failed (token missing/expired). */
   githubAuthErrors: Set<string>;
   setGithubAuthError: (repoPath: string) => void;
@@ -177,6 +179,27 @@ interface WorkspaceState {
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
   setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number; createdAt?: number } | null) => void;
+  /** No-op (same state object) when `next` equals the current map by content. */
+  setDetectedServers: (next: Record<string, number[]>) => void;
+}
+
+/** Port to show for a worktree: the server tab's own, else the lowest detected one. */
+export function selectServerPort(state: WorkspaceState, worktreeId: string): number | undefined {
+  return state.runningServers[worktreeId]?.port ?? state.detectedServers[worktreeId]?.[0];
+}
+
+/** Whether a worktree has a server, started from its server tab or detected. */
+export function selectIsServerRunning(state: WorkspaceState, worktreeId: string): boolean {
+  return !!state.runningServers[worktreeId] || (state.detectedServers[worktreeId]?.length ?? 0) > 0;
+}
+
+function sameDetectedServers(a: Record<string, number[]>, b: Record<string, number[]>): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((key) => {
+    const other = b[key];
+    return other !== undefined && other.length === a[key].length && a[key].every((port, i) => port === other[i]);
+  });
 }
 
 /**
@@ -259,6 +282,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
     showPrComments: state.showPrComments,
     pendingReviews: state.pendingReviews,
     runningServers: state.runningServers,
+    detectedServers: state.detectedServers,
     seenWorktrees: state.seenWorktrees,
     unreadWorktrees: state.unreadWorktrees,
     needsYouSince: state.needsYouSince,
@@ -277,6 +301,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
       showPrComments: rekeyRecord(next.showPrComments!, oldId, newId),
       pendingReviews: rekeyRecord(next.pendingReviews!, oldId, newId),
       runningServers: rekeyRecord(next.runningServers!, oldId, newId),
+      detectedServers: rekeyRecord(next.detectedServers!, oldId, newId),
       seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
       unreadWorktrees: rekeySet(next.unreadWorktrees!, oldId, newId),
       needsYouSince: rekeyRecord(next.needsYouSince!, oldId, newId),
@@ -472,6 +497,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   archiveAfterDays: 2,
   deleteAfterDays: 0,
   runningServers: {},
+  detectedServers: {},
   githubAuthErrors: new Set<string>(),
   setGithubAuthError: (repoPath) =>
     set((state) => ({
@@ -590,6 +616,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         selectionAnchorId: state.selectionAnchorId === id ? null : state.selectionAnchorId,
         runningServers: (() => {
           const { [id]: _, ...rest } = state.runningServers;
+          return rest;
+        })(),
+        detectedServers: (() => {
+          const { [id]: _, ...rest } = state.detectedServers;
           return rest;
         })(),
       };
@@ -1089,6 +1119,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       archiveAfterDays: 2,
       deleteAfterDays: 0,
       runningServers: {},
+      detectedServers: {},
       githubAuthErrors: new Set<string>(),
       completedSetups: [],
       restoredRepos: new Set<string>(),
@@ -1102,6 +1133,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const { [worktreeId]: _, ...rest } = state.runningServers;
     return { runningServers: rest };
   }),
+
+  setDetectedServers: (next) => set((state) =>
+    sameDetectedServers(state.detectedServers, next) ? state : { detectedServers: next },
+  ),
 }));
 
 // `needsYouSince` is derived from worktrees + seen + unread, which many actions

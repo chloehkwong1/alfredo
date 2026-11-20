@@ -11,7 +11,7 @@ import { startPollInterval } from "../services/pollInterval";
  * the store.
  */
 const revivingServers = new Set<string>();
-import { getConfig, listSessions, claimWorktreePort, listWorktrees, warmUpServer } from "../api";
+import { getConfig, detectDevServers, listSessions, claimWorktreePort, listWorktrees, warmUpServer } from "../api";
 import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
 import { stopDevServer } from "../services/portReclaim";
@@ -67,6 +67,7 @@ function detectPortFromOutput(text: string): number | undefined {
 const SERVER_GRACE_PERIOD_MS = 5_000;
 const SERVER_HEARTBEAT_STALE_MS = 10_000;
 const SERVER_POLL_INTERVAL_MS = 3_000;
+const DETECTED_SERVERS_POLL_MS = 5_000;
 
 type SetRunningServer = (wtId: string, entry: {
   sessionId: string;
@@ -250,6 +251,46 @@ export function useServerReconciliation() {
     reconcile();
     return () => { cancelled = true; };
   }, [setRunningServer]);
+}
+
+/**
+ * Detects dev servers listening inside any worktree (whoever started them) and
+ * mirrors them into the store. Runs on mount, then every 5 s while focused.
+ * Skips a tick while the previous call is still in flight.
+ */
+export function useDetectedServers() {
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+
+    async function detect() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const worktrees = useWorkspaceStore.getState().worktrees;
+        const detected = await detectDevServers(worktrees.map((wt) => wt.path));
+        if (cancelled) return;
+        const idByPath = new Map(worktrees.map((wt) => [wt.path, wt.id]));
+        const next: Record<string, number[]> = {};
+        for (const { worktreePath, ports } of detected) {
+          const id = idByPath.get(worktreePath);
+          if (id && ports.length > 0) next[id] = ports;
+        }
+        useWorkspaceStore.getState().setDetectedServers(next);
+      } catch (err) {
+        console.warn("[detected-servers] detection failed:", err);
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    detect();
+    const stop = startPollInterval(detect, DETECTED_SERVERS_POLL_MS);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, []);
 }
 
 /**
