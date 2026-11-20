@@ -209,9 +209,14 @@ fn is_agent(name: &str, args: Option<&str>) -> bool {
     let Some(args) = args else {
         return false;
     };
-    let argv0 = proc_basename(args.split_whitespace().next().unwrap_or(""));
-    argv0 == "claude"
-        || argv0.starts_with("codex")
+    let mut words = args.split_whitespace();
+    let mut program = proc_basename(words.next().unwrap_or(""));
+    // `node /opt/homebrew/bin/claude …`: the script names the agent.
+    if matches!(program, "node" | "bun") {
+        program = proc_basename(words.find(|w| !w.starts_with('-')).unwrap_or(""));
+    }
+    program == "claude"
+        || program.starts_with("codex")
         || args.contains("@anthropic-ai/claude-code")
         || args.contains("@openai/codex")
 }
@@ -308,10 +313,23 @@ fn is_interactive_shell(
     let Some(args) = args.get(&pid) else {
         return true;
     };
-    !args.split_whitespace().skip(1).any(|arg| {
-        // `-c`, or a cluster that includes it (`-lc`); long options are flags.
-        !arg.starts_with('-') || (!arg.starts_with("--") && arg[1..].contains('c'))
-    })
+    let mut words = args.split_whitespace().skip(1);
+    while let Some(arg) = words.next() {
+        // These take a value (nix-shell runs `bash --rcfile <file>`): skip it.
+        if matches!(arg, "--rcfile" | "--init-file" | "-o" | "+o" | "-O" | "+O") {
+            words.next();
+        } else if arg.starts_with("--") {
+            continue;
+        } else if arg.starts_with('-') || arg.starts_with('+') {
+            // `-c`, or a cluster that includes it (`-lc`).
+            if arg[1..].contains('c') {
+                return false;
+            }
+        } else {
+            return false; // a script
+        }
+    }
+    true
 }
 
 /// Walk up from the listener to the top of the process tree that belongs to
@@ -1179,6 +1197,53 @@ mod tests {
             302
         );
         assert_eq!(kill_targets(302, 305, &procs, &protected), vec![305]);
+    }
+
+    #[test]
+    fn nix_shell_rcfile_bash_is_a_boundary() {
+        let procs = proc_table(&[
+            (301, 1, "login"),
+            (302, 301, "-zsh"),
+            (303, 302, "bash"),
+            (304, 303, "puma"),
+        ]);
+        let cwds = cwd_table(&[301, 302, 303, 304], "/w/a");
+        let args = HashMap::from([
+            (302, "-zsh".to_string()),
+            (303, "bash --rcfile /tmp/nix-shell.x/rc".to_string()),
+            (304, "puma 6.4.2 (tcp://0.0.0.0:3000)".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        let root = find_root(304, &procs, &cwds, &protected, &args, "/w/a");
+        assert_eq!(root, 303);
+        assert_eq!(kill_targets(root, 304, &procs, &protected), vec![304]);
+        for interactive in [
+            "bash --init-file /tmp/rc",
+            "zsh -o vi",
+            "bash +o histexpand",
+            "bash -O extglob",
+        ] {
+            let args = HashMap::from([(303, interactive.to_string())]);
+            assert!(is_interactive_shell(&procs, &args, 303), "{interactive}");
+        }
+        for runs_command in ["bash --rcfile /tmp/rc -c make", "bash -o vi script.sh"] {
+            let args = HashMap::from([(303, runs_command.to_string())]);
+            assert!(!is_interactive_shell(&procs, &args, 303), "{runs_command}");
+        }
+    }
+
+    #[test]
+    fn protects_npm_claude_run_through_node_by_bin_path() {
+        let procs = proc_table(&[(10, 1, "node"), (11, 1, "bun"), (12, 1, "node")]);
+        let args = HashMap::from([
+            (10, "node /opt/homebrew/bin/claude --resume abc".to_string()),
+            (11, "bun --smol /Users/x/.bun/bin/codex exec".to_string()),
+            (12, "node /w/a/bin/dev-server.js".to_string()),
+        ]);
+        let protected = protected_pids(&procs, &args, &HashSet::new(), 857);
+        assert!(protected.contains(&10));
+        assert!(protected.contains(&11));
+        assert!(!protected.contains(&12));
     }
 
     #[test]
