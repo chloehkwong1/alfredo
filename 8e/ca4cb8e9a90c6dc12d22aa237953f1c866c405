@@ -1,0 +1,21 @@
+src-tauri/src/commands/diff.rs
+  s_f32616b25a2361::t_82e685dc05d601 1-2
+  s_f32616b25a2361::t_fc425e39cad7aa 2045-2091
+  s_f32616b25a2361::t_06da0f9000c595 831-835,837-865,868-877,879-880
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8eca4cb8e9a90c6dc12d22aa237953f1c866c405",
+  "prompts": {},
+  "sessions": {
+    "s_f32616b25a2361": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4a7500c-2b28-4cc0-9e59-6ebe3442886f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
