@@ -1,6 +1,6 @@
 ---
 title: Worktrees created outside Alfredo appear automatically
-keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker, worktree note, name a worktree, label, orchestration]
+keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker, worktree note, worktree notes, name a worktree, label, orchestration, role, orchestrator, plan, map, plan item, alsoAfter]
 ui_path: N/A — automatic; new worktrees appear in the sidebar within seconds
 ---
 
@@ -63,10 +63,10 @@ sends its own first prompt.
 - Only worktrees created while Alfredo runs are adopted, so a marker
   for a worktree that existed at launch does nothing.
 
-## Naming a worktree from outside
+## Worktree notes
 
-A tool can give a worktree a name, and put it in an orchestration, by
-writing a worktree note. The note is one JSON file at
+A tool can give a worktree a name, put it in an orchestration, and make
+it the orchestrator, by writing a worktree note. The note is one JSON file at
 `<common git dir>/alfredo/worktrees/<worktree folder name>.json`, in
 the same `alfredo` folder as the autostart marker:
 
@@ -91,7 +91,8 @@ the same `alfredo` folder as the autostart marker:
   while Alfredo is the focused app, and up to about ten minutes while
   it is not.
   Alfredo never changes or removes the note.
-- A note larger than 4 KB, or one that is not valid JSON, is ignored.
+- A note file larger than 32 KB, or one that is not valid JSON, is ignored.
+  A note with neither a `label` nor an `orchestration` is ignored too.
 
 To write one, run this from any folder inside the worktree:
 
@@ -100,3 +101,61 @@ top="$(git rev-parse --show-toplevel)"
 dir="$(git rev-parse --path-format=absolute --git-common-dir)/alfredo/worktrees" && mkdir -p "$dir"
 printf '{"path":"%s","label":"PR 2 · Document scopes","orchestration":"Documents refactor"}\n' "$top" > "$dir/$(basename "$top").json"
 ```
+
+### Making a worktree the orchestrator, with a plan
+
+Two more fields turn a worktree into the **orchestrator** of its
+orchestration and give the orchestration a **map**. Alfredo only reads
+the note. Whatever writes it is yours: your own orchestrator, mod or
+script can write it, and Alfredo does not care which. Alfredo shows the
+`orchestrator` tag and the map from the note alone.
+
+```json
+{
+  "path": "/abs/path/to/the/orchestrator/worktree",
+  "label": "Agency staff",
+  "orchestration": "Agency staff",
+  "role": "orchestrator",
+  "plan": [
+    { "key": "1", "name": "PR 1", "title": "Scheduling-only rule", "state": "merged", "folder": "chloe-scheduling-only-rule" },
+    { "key": "5", "name": "PR 5", "title": "Agency set-up", "after": "1", "alsoAfter": ["4"], "state": "active", "folder": "chloe-agency-set-up" },
+    { "key": "6", "name": "PR 6", "title": "Clean-up script", "after": "5", "state": "todo" }
+  ]
+}
+```
+
+- `role` is optional. The only value is `orchestrator`. Any other
+  value counts as no `role`. A `role` with no `orchestration` is
+  ignored.
+- `plan` is optional: one item per piece of work, also for work that
+  has no worktree yet. Alfredo reads it only from a note whose `role`
+  is `orchestrator`. In any other note it is ignored. A `plan` that is
+  not a list is read as no plan; it never makes the whole note fail.
+- Each plan item has these fields:
+  - `key` (required) is the short name shown in the item's square, for
+    example `5`, `2a` or `Library`. It is trimmed, loses its control
+    characters and is cut at 8 characters. An item with no key is
+    dropped. If a key repeats, the first item with it wins and the
+    later ones are dropped. `after` and `alsoAfter` name keys.
+  - `name` is how the item is called in a sentence, for example
+    `PR 5`. It is cut at 40 characters. With no `name`, the key is
+    used. Alfredo never adds a word such as "PR" by itself.
+  - `title` is cut at 200 characters, like `label`.
+  - `after` is the key of the one parent the item hangs from in the
+    map. `alsoAfter` is a list of keys of other items it waits for. It
+    draws no line; it shows only in the tooltip's grey line, as
+    `also after PR 4`.
+  - `state` is `todo`, `active`, `merged` or `closed`. Anything else,
+    or none, counts as `todo`.
+  - `folder` is the folder name of the item's worktree, when it has
+    one. It ties the item to that worktree. The map uses it to ring
+    the row under the pointer and to show whether that worktree needs
+    you.
+- The plan is cut at 50 items.
+- If two notes in one repo say `orchestrator` for the same
+  orchestration, the one whose worktree has the lower PR number wins; with no PR
+  numbers, the one whose branch sorts first. The other is a
+  plain member.
+
+See [Orchestrations](orchestrations.md) for how the tag, the mark and
+the map look.

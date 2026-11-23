@@ -1,6 +1,6 @@
 ---
 title: Orchestrations and "Your turn" — a list of the worktrees that need you
-keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note, running from, subagent, orchestrator]
+keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note, running from, subagent, orchestrator, mark, tag, tooltip, plan, map, no map, worktree notes]
 ui_path: Sidebar — "Your turn" at the top; Repository settings → General → Orchestrations
 ---
 
@@ -94,6 +94,76 @@ Limits of these links:
 - The kanban card still says "Not running".
 - Paths are compared as text, so a worktree reached through a symlink
   can be missed.
+
+**The mark and the tag:** in an orchestration, each worktree row shows
+a small mark after its name, before the time and the pin. The
+orchestrator's row shows the tag `orchestrator` in place of the mark.
+Archived worktrees and the kanban cards show neither. Neither takes a
+click: a click goes to the row, as a click on the name does.
+
+- A worktree shows one mark. If two orchestrations list it, the first
+  one wins, and it is the same one that **Your turn** uses.
+- An orchestration with only one row left shows no mark and no tag.
+  The exception is an orchestrator that has a plan: it keeps its tag,
+  so you can still reach the map before its worktrees exist.
+- The main checkout's card shows no tag and no mark, also when a
+  session there runs sub-agents in other worktrees. Those other
+  worktrees still get the mark.
+- With one orchestration on screen, the mark has the accent tint. With
+  two or more, each has its own colour, from the same palette as the
+  stack chips.
+
+**Which worktree is the orchestrator:**
+
+1. **Told.** The worktree whose
+   [worktree note](external-worktrees.md) says `"role": "orchestrator"`,
+   for the orchestration that note names.
+2. **Seen.** In an orchestration that Alfredo made from a session's
+   work (see **Worktrees a session works in**), the session's own
+   worktree.
+
+Notes come before links. An orchestration from a rule, or from notes
+with no `role`, has no orchestrator, so no row has the tag. A question
+that the orchestrator's own session asks shows in **Your turn** as the
+item `orchestrator`, for both ways.
+
+**The tooltip:** point at the mark or the tag and a tooltip opens to
+the right. It is read-only; nothing in it takes a click. From top to
+bottom:
+
+1. The orchestration's name.
+2. The map, when the orchestration has a plan.
+3. One grey line about this row. For a worktree that has a plan item:
+   the item's name, its parent and what waits for it, for example
+   `PR 5 · after PR 1 · PR 6 waits for it`. Names come from the
+   note's `name`, or its `key`. For the orchestrator:
+   `Orchestrator · 1 of 4 merged`, or `Orchestrator · 3 worktrees`
+   with no plan. A worktree with no plan item shows `3 worktrees`.
+4. With no plan, a last line in a lighter grey:
+   `No map: this orchestration has no plan. See Help › Worktree notes.`
+
+The **no-map line** shows only for an orchestration that comes from
+worktree notes or from a rule. It never shows for an orchestration that
+Alfredo made from a session's work, because no tool can write a plan
+for that. To get a map, have your own orchestrator write the
+orchestrator's [worktree note](external-worktrees.md) with a `plan`.
+Alfredo only reads the note; it never writes one.
+
+**The map:** one square per plan item, with its `key` in it (a long key
+makes a wider square). An item with no `after`, or whose `after` names
+no item, sits at the left. Each child sits to the right of its parent,
+joined by a line. Siblings go top to bottom in plan order. An item that
+is part of a loop is drawn at the left. The map is at most 240 px high;
+a very large plan is scaled down to fit. The orchestrator has no
+square. The square of the row under the pointer has a ring. A square
+looks like this:
+
+- **Merged:** green, filled.
+- **Closed:** grey, filled.
+- **Todo:** dashed outline.
+- **Active, and its worktree needs you:** the waiting colour, with a
+  glow.
+- **Active, any other case:** amber.
 
 **What a row shows:**
 
