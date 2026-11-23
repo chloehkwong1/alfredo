@@ -16,6 +16,10 @@ import {
   orchestrationsFromLinks,
   orchestrationsForRepo,
   claimWorktrees,
+  shownOrchestrations,
+  orchestrationMarks,
+  orchestrationMarksFor,
+  orchestrationOf,
   type Orchestration,
   type SessionLinks,
 } from "./orchestrations";
@@ -788,5 +792,128 @@ describe("claimWorktrees", () => {
     const [o] = claimWorktrees([{ ...orch("N", ["a"]), orchestratorId: "a", plan }]);
     expect(o.plan).toEqual(plan);
     expect(o.orchestratorId).toBe("a");
+  });
+});
+
+describe("shownOrchestrations", () => {
+  const link = (name: string, head: string, ids: string[]): Orchestration => ({
+    ...orch(name, ids),
+    orchestratorId: head,
+    fromLinks: true,
+  });
+  it("drops a link orchestration whose other worktrees a note already places", () => {
+    const shown = shownOrchestrations([orch("N", ["x", "y"]), link("L", "h", ["h", "x"])]);
+    expect(shown.map((o) => o.name)).toEqual(["N"]);
+  });
+  it("keeps an orchestration with one item when it has a plan", () => {
+    const plan: PlanItem[] = [{ key: "p1", state: "todo" }];
+    const shown = shownOrchestrations([{ ...orch("N", ["a"]), orchestratorId: "a", plan }, orch("M", ["b"])]);
+    expect(shown.map((o) => o.name)).toEqual(["N"]);
+  });
+});
+
+describe("orchestrationMarks", () => {
+  const worktrees = (...ids: string[]) => ids.map((id) => wt({ id, path: `/r/${id}` }));
+  const withOrchestrator = (name: string, head: string, ids: string[]): Orchestration => ({
+    ...orch(name, ids),
+    orchestratorId: head,
+  });
+  it("marks members and the orchestrator, and leaves other worktrees out", () => {
+    const marks = orchestrationMarks([withOrchestrator("N", "a", ["a", "b"])], worktrees("a", "b", "c"), new Map());
+    expect(marks.get("a")).toEqual({ orchestrator: true, hue: null });
+    expect(marks.get("b")).toEqual({ orchestrator: false, hue: null });
+    expect(marks.has("c")).toBe(false);
+  });
+  it("gives no mark to an archived worktree", () => {
+    const list = [wt({ id: "a" }), wt({ id: "b", archived: true })];
+    const marks = orchestrationMarks([orch("N", ["a", "b"])], list, new Map());
+    expect([...marks.keys()]).toEqual(["a"]);
+  });
+  it("uses the accent tint for one orchestration and a hue each for two", () => {
+    const list = worktrees("a", "b", "c", "d");
+    const one = orchestrationMarks([orch("N", ["a", "b"])], list, new Map());
+    expect(one.get("a")?.hue).toBeNull();
+    const two = orchestrationMarks([orch("N", ["a", "b"]), orch("M", ["c", "d"])], list, new Map());
+    expect([two.get("a")?.hue, two.get("c")?.hue]).toEqual([0, 1]);
+  });
+  it("does not count an orchestration with only archived rows toward the two", () => {
+    const list = [wt({ id: "a" }), wt({ id: "b" }), wt({ id: "c", archived: true }), wt({ id: "d", archived: true })];
+    const marks = orchestrationMarks([orch("N", ["a", "b"]), orch("M", ["c", "d"])], list, new Map());
+    expect(marks.get("a")?.hue).toBeNull();
+  });
+  it("takes the slots after the ones stacks use", () => {
+    const list = worktrees("a", "b", "c", "d");
+    const marks = orchestrationMarks(
+      [orch("N", ["a", "b"]), orch("M", ["c", "d"])],
+      list,
+      new Map([["s1", 0], ["s2", 1]]),
+    );
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([2, 3]);
+  });
+  it("wraps when no slot is free", () => {
+    const list = worktrees("a", "b", "c", "d");
+    const marks = orchestrationMarks(
+      [orch("N", ["a", "b"]), orch("M", ["c", "d"])],
+      list,
+      new Map([0, 1, 2, 3, 4, 5].map((slot) => [`s${slot}`, slot])),
+    );
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([0, 1]);
+  });
+});
+
+describe("orchestrationMarksFor", () => {
+  const noted = (id: string, orchestration: string, extra: Partial<Worktree> = {}) =>
+    wt({ id, path: `/r/${id}`, branch: id, note: { orchestration }, ...extra });
+  const list = () => [noted("a", "N"), noted("b", "N"), noted("c", "M"), noted("d", "M")];
+
+  it("returns the same map for the same worktrees array and rules", () => {
+    const worktrees = list();
+    const rules = {};
+    expect(orchestrationMarksFor(worktrees, rules)).toBe(orchestrationMarksFor(worktrees, rules));
+  });
+  it("recomputes when rules change but worktrees is the same array", () => {
+    const worktrees = [wt({ id: "a", path: "/r/a", branch: "bill/a" }), wt({ id: "b", path: "/r/b", branch: "bill/b" })];
+    expect(orchestrationMarksFor(worktrees, {}).size).toBe(0);
+    const marks = orchestrationMarksFor(worktrees, { "/r": [{ name: "Billing", branchPrefix: "bill/" }] });
+    expect([...marks.keys()].sort()).toEqual(["a", "b"]);
+  });
+  it("keeps each mark's identity across a new array with the same content", () => {
+    const worktrees = list();
+    const rules = {};
+    const a = orchestrationMarksFor(worktrees, rules);
+    const b = orchestrationMarksFor([...worktrees], rules);
+    expect(b).not.toBe(a);
+    expect(a.size).toBe(4);
+    for (const id of a.keys()) expect(b.get(id)).toBe(a.get(id));
+  });
+  it("gives a new mark object when a mark's content changed", () => {
+    const rules = {};
+    const before = orchestrationMarksFor(list(), rules);
+    const after = orchestrationMarksFor([noted("a", "N"), noted("b", "N")], rules);
+    expect(before.get("a")?.hue).toBe(0);
+    expect(after.get("a")).not.toBe(before.get("a"));
+    expect(after.get("a")?.hue).toBeNull();
+  });
+  it("gives one mark to a worktree that a note places and a session works in", () => {
+    const worktrees = [
+      noted("x", "N"),
+      noted("y", "N"),
+      wt({ id: "h", path: "/r/h", branch: "h" }),
+      wt({ id: "w", path: "/r/w", branch: "w", workedFrom: { worktreeId: "h", running: true } }),
+      noted("z", "N", { workedFrom: { worktreeId: "h", running: true } }),
+    ];
+    const marks = orchestrationMarksFor(worktrees, {});
+    expect(marks.get("z")).toEqual(marks.get("x"));
+    expect(marks.get("h")?.orchestrator).toBe(true);
+  });
+});
+
+describe("orchestrationOf", () => {
+  it("returns the shown orchestration that holds the worktree, named from labels", () => {
+    const head = wt({ id: "h", path: "/r/h", branch: "h" });
+    const w = wt({ id: "w", path: "/r/w", branch: "w", workedFrom: { worktreeId: "h", running: true } });
+    const found = orchestrationOf("w", [head, w], {}, { "/r/h": "Billing" });
+    expect(found?.name).toBe("Billing");
+    expect(orchestrationOf("nope", [head, w], {}, {})).toBeUndefined();
   });
 });

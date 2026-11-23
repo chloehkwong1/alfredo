@@ -1,5 +1,6 @@
 import type { HookActivity, HookPhase, OrchestrationRule, PlanItem, Worktree, WorkedFrom } from "../types";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
+import { STACK_HUE_COUNT, stackHuesFor } from "../lib/stackChain";
 import { worktreeEffectiveStatus, worktreeNeedsYou } from "./dockBadge";
 
 export interface OrchestrationItem {
@@ -411,4 +412,102 @@ export function orchestrationsForRepo(
     ),
     ...orchestrationsFromLinks(repoPath, worktrees, labels),
   ];
+}
+
+export interface OrchestrationMark {
+  orchestrator: boolean;
+  /** Palette slot of `--stack-hue-N`, or null for the accent tint. */
+  hue: number | null;
+}
+
+/** `claimWorktrees`, then drop each orchestration that has fewer than two
+ *  items and no plan. An orchestrator with a plan keeps its tag while its
+ *  worktrees do not exist yet. */
+export function shownOrchestrations(orchestrations: Orchestration[]): Orchestration[] {
+  return claimWorktrees(orchestrations).filter((o) => o.items.length >= 2 || o.plan !== undefined);
+}
+
+/** The mark of every worktree that is not archived and is in a shown orchestration. */
+export function orchestrationMarks(
+  shown: Orchestration[],
+  worktrees: Worktree[],
+  stackHues: Map<string, number>,
+): Map<string, OrchestrationMark> {
+  const live = new Set(worktrees.filter((wt) => !wt.archived).map((wt) => wt.id));
+  const withRows = shown.filter((o) => o.items.some((item) => live.has(item.worktreeId)));
+  const usedByStacks = new Set(stackHues.values());
+  const free = Array.from({ length: STACK_HUE_COUNT }, (_, slot) => slot).filter(
+    (slot) => !usedByStacks.has(slot),
+  );
+  const marks = new Map<string, OrchestrationMark>();
+  withRows.forEach((o, i) => {
+    const hue =
+      withRows.length < 2 ? null : free.length > 0 ? free[i % free.length] : i % STACK_HUE_COUNT;
+    for (const item of o.items) {
+      if (!live.has(item.worktreeId)) continue;
+      marks.set(item.worktreeId, { orchestrator: o.orchestratorId === item.worktreeId, hue });
+    }
+  });
+  return marks;
+}
+
+function shownOrchestrationsForRepos(
+  worktrees: Worktree[],
+  rules: Record<string, OrchestrationRule[]>,
+  labels: Record<string, string>,
+): Orchestration[] {
+  const repoPaths = [...new Set(worktrees.map((wt) => wt.repoPath))];
+  return shownOrchestrations(
+    repoPaths.flatMap((repoPath) => orchestrationsForRepo(repoPath, worktrees, rules[repoPath] ?? [], labels)),
+  );
+}
+
+function orchestrationMarkEqual(a: OrchestrationMark, b: OrchestrationMark): boolean {
+  return a.orchestrator === b.orchestrator && a.hue === b.hue;
+}
+
+/** Memo per `worktrees` array and `rules` object. A mark whose content is the
+ *  same as in the previous result keeps its object identity. The store
+ *  replaces the worktree array on every patch, so sidebar rows selecting
+ *  `orchestrationMarksFor(...).get(id)` only re-render when their own mark
+ *  changed. */
+const marksCache = new WeakMap<Worktree[], WeakMap<object, Map<string, OrchestrationMark>>>();
+let lastMarks: Map<string, OrchestrationMark> = new Map();
+export function orchestrationMarksFor(
+  worktrees: Worktree[],
+  rules: Record<string, OrchestrationRule[]>,
+): Map<string, OrchestrationMark> {
+  let byRules = marksCache.get(worktrees);
+  if (!byRules) {
+    byRules = new WeakMap();
+    marksCache.set(worktrees, byRules);
+  }
+  let marks = byRules.get(rules);
+  if (!marks) {
+    const fresh = orchestrationMarks(
+      shownOrchestrationsForRepos(worktrees, rules, {}),
+      worktrees,
+      stackHuesFor(worktrees),
+    );
+    marks = new Map();
+    for (const [id, next] of fresh) {
+      const prev = lastMarks.get(id);
+      marks.set(id, prev && orchestrationMarkEqual(prev, next) ? prev : next);
+    }
+    byRules.set(rules, marks);
+    lastMarks = marks;
+  }
+  return marks;
+}
+
+/** The shown orchestration that holds the worktree, with real names. For the tooltip. */
+export function orchestrationOf(
+  worktreeId: string,
+  worktrees: Worktree[],
+  rules: Record<string, OrchestrationRule[]>,
+  labels: Record<string, string>,
+): Orchestration | undefined {
+  return shownOrchestrationsForRepos(worktrees, rules, labels).find((o) =>
+    o.items.some((item) => item.worktreeId === worktreeId),
+  );
 }
