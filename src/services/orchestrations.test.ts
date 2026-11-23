@@ -22,6 +22,8 @@ import {
   orchestrationOf,
   markLine,
   noPlanHint,
+  planLayout,
+  planSquareLook,
   type Orchestration,
   type SessionLinks,
 } from "./orchestrations";
@@ -1022,5 +1024,85 @@ describe("noPlanHint", () => {
   });
   it("is null for an orchestration made from links", () => {
     expect(noPlanHint({ ...base, fromLinks: true })).toBeNull();
+  });
+});
+
+describe("planLayout", () => {
+  const at = (layout: ReturnType<typeof planLayout>, key: string) => layout.nodes.find((n) => n.key === key);
+  it("lays out the mockup's plan", () => {
+    const layout = planLayout([
+      { key: "1", state: "merged" },
+      { key: "2", after: "1", state: "active" },
+      { key: "5", after: "1", state: "active" },
+      { key: "6", after: "5", state: "todo" },
+    ]);
+    expect(layout.nodes).toEqual([
+      { key: "1", col: 0, row: 0.5 },
+      { key: "2", col: 1, row: 0 },
+      { key: "5", col: 1, row: 1 },
+      { key: "6", col: 2, row: 1 },
+    ]);
+    expect(layout.edges).toEqual([
+      { from: "1", to: "2" },
+      { from: "1", to: "5" },
+      { from: "5", to: "6" },
+    ]);
+    expect(layout.cols).toBe(3);
+    expect(layout.rows).toBe(2);
+  });
+  it("makes a root of an item whose parent is missing or is itself", () => {
+    const layout = planLayout([
+      { key: "a", after: "zzz", state: "todo" },
+      { key: "b", after: "b", state: "todo" },
+      { key: "c", state: "todo" },
+    ]);
+    expect(layout.nodes).toEqual([
+      { key: "a", col: 0, row: 0 },
+      { key: "b", col: 0, row: 1 },
+      { key: "c", col: 0, row: 2 },
+    ]);
+    expect(layout.edges).toEqual([]);
+    expect(layout.cols).toBe(1);
+    expect(layout.rows).toBe(3);
+  });
+  it("makes roots of the items of a cycle and still places what hangs off them", () => {
+    const layout = planLayout([
+      { key: "a", after: "b", state: "todo" },
+      { key: "b", after: "a", state: "todo" },
+      { key: "c", after: "a", state: "todo" },
+    ]);
+    expect(at(layout, "a")).toEqual({ key: "a", col: 0, row: 0 });
+    expect(at(layout, "b")).toEqual({ key: "b", col: 0, row: 1 });
+    expect(at(layout, "c")).toEqual({ key: "c", col: 1, row: 0 });
+    expect(layout.edges).toEqual([{ from: "a", to: "c" }]);
+  });
+  it("returns an empty layout for an empty plan", () => {
+    expect(planLayout([])).toEqual({ nodes: [], edges: [], cols: 0, rows: 0 });
+  });
+  it("handles 50 items in one chain", () => {
+    const plan: PlanItem[] = Array.from({ length: 50 }, (_, i) => ({
+      key: `k${i}`,
+      ...(i > 0 ? { after: `k${i - 1}` } : {}),
+      state: "todo" as const,
+    }));
+    const layout = planLayout(plan);
+    expect(layout.cols).toBe(50);
+    expect(layout.rows).toBe(1);
+    expect(layout.nodes).toHaveLength(50);
+  });
+});
+
+describe("planSquareLook", () => {
+  it("follows the state for merged, closed and todo", () => {
+    expect(planSquareLook({ key: "1", state: "merged" }, undefined, none, none)).toBe("merged");
+    expect(planSquareLook({ key: "1", state: "closed" }, undefined, none, none)).toBe("closed");
+    expect(planSquareLook({ key: "1", state: "todo" }, undefined, none, none)).toBe("todo");
+  });
+  it("is needsYou for an active item whose worktree waits for input", () => {
+    const waiting = wt({ agentStatus: "waitingForInput" });
+    expect(planSquareLook({ key: "1", state: "active" }, waiting, none, none)).toBe("needsYou");
+  });
+  it("is active for an active item with no worktree", () => {
+    expect(planSquareLook({ key: "1", state: "active" }, undefined, none, none)).toBe("active");
   });
 });

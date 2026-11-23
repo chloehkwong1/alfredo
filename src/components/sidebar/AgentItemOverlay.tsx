@@ -43,7 +43,7 @@ function AgentItemOverlay({
   const deckLayer = "absolute inset-0 rounded-md bg-bg-elevated ring-1 ring-inset ring-card-ring";
 
   return (
-    <div className="relative" style={width ? { width } : undefined}>
+    <div className="relative pointer-events-none" style={width ? { width } : undefined}>
       {batchCount > 2 && (
         <div aria-hidden className={`${deckLayer} origin-top translate-y-[11px] scale-x-[0.93]`} />
       )}

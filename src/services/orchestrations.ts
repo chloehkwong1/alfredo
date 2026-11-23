@@ -516,9 +516,92 @@ export function orchestrationOf(
 
 /** The plan item of a worktree: the one whose `folder` is the last part of the worktree's path. */
 export function planItemFor(orchestration: Orchestration, worktree: Pick<Worktree, "path">): PlanItem | undefined {
-  const folder = worktree.path.split("/").filter(Boolean).pop();
+  const folder = lastPathPart(worktree.path);
   if (!folder) return undefined;
   return orchestration.plan?.find((item) => item.folder === folder);
+}
+
+function lastPathPart(path: string): string | undefined {
+  return path.split("/").filter(Boolean).pop();
+}
+
+/** The worktree whose `folder` is the plan item's: planItemFor in the other direction. */
+export function worktreeForPlanItem<T extends Pick<Worktree, "path">>(item: PlanItem, worktrees: T[]): T | undefined {
+  if (!item.folder) return undefined;
+  return worktrees.find((wt) => lastPathPart(wt.path) === item.folder);
+}
+
+export interface PlanNode {
+  key: string;
+  col: number;
+  row: number;
+}
+
+export interface PlanLayout {
+  nodes: PlanNode[];
+  edges: { from: string; to: string }[];
+  cols: number;
+  rows: number;
+}
+
+/** Column = depth under the item named by `after`; leaves take the rows in
+ *  depth-first order and a parent sits at the mean of its first and last
+ *  child. An item with no usable parent (none, missing, itself, or part of a
+ *  cycle) is a root. */
+export function planLayout(plan: PlanItem[]): PlanLayout {
+  const byKey = new Map<string, PlanItem>();
+  for (const item of plan) if (!byKey.has(item.key)) byKey.set(item.key, item);
+  const parentKeyOf = (item: PlanItem): string | undefined =>
+    item.after !== undefined && item.after !== item.key && byKey.has(item.after) ? item.after : undefined;
+  const inCycle = (item: PlanItem): boolean => {
+    const seen = new Set<string>();
+    for (let k = parentKeyOf(item); k !== undefined && !seen.has(k); k = parentKeyOf(byKey.get(k)!)) {
+      if (k === item.key) return true;
+      seen.add(k);
+    }
+    return false;
+  };
+  const roots: PlanItem[] = [];
+  const children = new Map<string, PlanItem[]>();
+  const edges: PlanLayout["edges"] = [];
+  for (const item of plan) {
+    const parentKey = inCycle(item) ? undefined : parentKeyOf(item);
+    if (parentKey === undefined) {
+      roots.push(item);
+      continue;
+    }
+    children.set(parentKey, [...(children.get(parentKey) ?? []), item]);
+    edges.push({ from: parentKey, to: item.key });
+  }
+  const nodes = new Map<string, PlanNode>();
+  let nextRow = 0;
+  const place = (item: PlanItem, col: number): number => {
+    const kids = children.get(item.key) ?? [];
+    const rowsOfKids = kids.map((kid) => place(kid, col + 1));
+    const row = rowsOfKids.length === 0 ? nextRow++ : (rowsOfKids[0] + rowsOfKids[rowsOfKids.length - 1]) / 2;
+    nodes.set(item.key, { key: item.key, col, row });
+    return row;
+  };
+  for (const root of roots) place(root, 0);
+  const placed = plan.filter((item) => byKey.get(item.key) === item).map((item) => nodes.get(item.key)!);
+  return {
+    nodes: placed,
+    edges,
+    cols: placed.reduce((max, n) => Math.max(max, n.col + 1), 0),
+    rows: nextRow,
+  };
+}
+
+export type PlanSquareLook = "merged" | "closed" | "todo" | "needsYou" | "active";
+
+export function planSquareLook(
+  item: PlanItem,
+  worktree: Worktree | undefined,
+  seen: Set<string>,
+  unread: Set<string>,
+): PlanSquareLook {
+  if (item.state !== "active") return item.state;
+  return worktree && worktreeNeedsYou(worktree, seen, unread) ? "needsYou" : "active";
 }
 
 function joinNames(names: string[]): string {
