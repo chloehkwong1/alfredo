@@ -10,7 +10,7 @@ use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
-use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, SetupScript, TakePortResult, Worktree, WorktreeNote, WorktreeSource};
+use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PlanItem, PlanState, PortHolder, SetupScript, TakePortResult, Worktree, WorktreeNote, WorktreeSource};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -395,12 +395,18 @@ pub async fn take_autostart_marker(worktree_path: String) -> Result<bool> {
     Ok(take_autostart_marker_in(repo.commondir(), &path))
 }
 
-/// A note is a path and two short names, so anything bigger is not one.
-const WORKTREE_NOTE_MAX_BYTES: u64 = 4096;
+/// A note is a path, two short names and a plan of at most `PLAN_MAX_ITEMS`
+/// items, so anything bigger is not one.
+const WORKTREE_NOTE_MAX_BYTES: u64 = 32 * 1024;
+const PLAN_MAX_ITEMS: usize = 50;
+const PLAN_KEY_MAX_LEN: usize = 8;
+const PLAN_NAME_MAX_LEN: usize = 40;
 
 /// Read the note an external tool keeps for a worktree at `<common git dir>/
 /// alfredo/worktrees/<worktree folder name>.json`: `{"path", "label"?,
-/// "orchestration"?}`. Unlike the autostart marker it is never consumed, so
+/// "orchestration"?, "role"?, "plan"?}`. `role: "orchestrator"` with an
+/// `orchestration` makes the worktree the orchestrator, and only then is
+/// `plan` read; a malformed plan is left empty, never fails the note. Unlike the autostart marker it is never consumed, so
 /// every listing reads it again and the tool can rename a worktree by
 /// rewriting the file. `None` for a missing, oversized or malformed note, one
 /// whose `path` is another worktree (a reused folder name), or one with no
@@ -429,7 +435,58 @@ fn read_worktree_note_in(common_dir: &Path, worktree_path: &Path) -> Option<Work
             .and_then(crate::commands::app_config::sanitize_display_text)
     };
     let (label, orchestration) = (text("label"), text("orchestration"));
-    (label.is_some() || orchestration.is_some()).then_some(WorktreeNote { label, orchestration })
+    if label.is_none() && orchestration.is_none() {
+        return None;
+    }
+    let is_orchestrator = orchestration.is_some() && note.get("role").and_then(|v| v.as_str()) == Some("orchestrator");
+    let plan = if is_orchestrator { read_plan(note.get("plan")) } else { Vec::new() };
+    Some(WorktreeNote { label, orchestration, is_orchestrator, plan })
+}
+
+/// The plan items of a note, cleaned: items without a usable key, repeated
+/// keys and anything past `PLAN_MAX_ITEMS` are dropped.
+fn read_plan(plan: Option<&serde_json::Value>) -> Vec<PlanItem> {
+    let Some(items) = plan.and_then(|v| v.as_array()) else { return Vec::new() };
+    let cut = |s: String, max: usize| -> String { s.chars().take(max).collect() };
+    let mut result: Vec<PlanItem> = Vec::new();
+    for item in items {
+        if result.len() == PLAN_MAX_ITEMS {
+            break;
+        }
+        let text = |key: &str| item.get(key).and_then(|v| v.as_str()).and_then(crate::commands::app_config::sanitize_display_text);
+        let Some(key) = text("key").map(|k| cut(k, PLAN_KEY_MAX_LEN)) else { continue };
+        if result.iter().any(|existing| existing.key == key) {
+            continue;
+        }
+        let also_after = item
+            .get("alsoAfter")
+            .and_then(|v| v.as_array())
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|e| e.as_str())
+                    .filter_map(crate::commands::app_config::sanitize_display_text)
+                    .map(|k| cut(k, PLAN_KEY_MAX_LEN))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let state = match item.get("state").and_then(|v| v.as_str()) {
+            Some("active") => PlanState::Active,
+            Some("merged") => PlanState::Merged,
+            Some("closed") => PlanState::Closed,
+            _ => PlanState::Todo,
+        };
+        result.push(PlanItem {
+            key,
+            name: text("name").map(|n| cut(n, PLAN_NAME_MAX_LEN)),
+            title: text("title"),
+            after: text("after").map(|k| cut(k, PLAN_KEY_MAX_LEN)),
+            also_after,
+            state,
+            folder: text("folder"),
+        });
+    }
+    result
 }
 
 /// Delete a worktree by name.
@@ -1708,6 +1765,7 @@ mod tests {
             Some(WorktreeNote {
                 label: Some("PR 2 · Scopes".to_string()),
                 orchestration: Some("Documents refactor".to_string()),
+                ..Default::default()
             })
         );
     }
@@ -1738,9 +1796,9 @@ mod tests {
         std::fs::remove_file(&note).unwrap();
         assert_eq!(read_worktree_note_in(common.path(), &wt), None, "no file");
 
-        let five_kb = serde_json::json!({ "path": wt, "label": "PR 2", "padding": "a".repeat(5 * 1024) }).to_string();
+        let too_big = serde_json::json!({ "path": wt, "label": "PR 2", "padding": "a".repeat(33 * 1024) }).to_string();
         let blank_text = serde_json::json!({ "path": wt, "label": "   ", "orchestration": "" }).to_string();
-        for content in ["not json", "[]", "\"str\"", r#"{"label":"x"}"#, &five_kb, &blank_text] {
+        for content in ["not json", "[]", "\"str\"", r#"{"label":"x"}"#, &too_big, &blank_text] {
             std::fs::write(&note, content).unwrap();
             let shown: String = content.chars().take(60).collect();
             assert_eq!(read_worktree_note_in(common.path(), &wt), None, "{shown}");
@@ -1753,14 +1811,125 @@ mod tests {
             note_fixture(|wt| serde_json::json!({ "path": wt, "label": "a".repeat(300) }).to_string());
         assert_eq!(
             read_worktree_note_in(common.path(), &wt),
-            Some(WorktreeNote { label: Some("a".repeat(200)), orchestration: None })
+            Some(WorktreeNote { label: Some("a".repeat(200)), ..Default::default() })
         );
 
         std::fs::write(&note, serde_json::json!({ "path": wt, "label": "a\nb\u{7}c" }).to_string()).unwrap();
         assert_eq!(
             read_worktree_note_in(common.path(), &wt),
-            Some(WorktreeNote { label: Some("abc".to_string()), orchestration: None })
+            Some(WorktreeNote { label: Some("abc".to_string()), ..Default::default() })
         );
+    }
+
+    fn orchestrator_note(wt: &Path, role: &str, plan: serde_json::Value) -> String {
+        serde_json::json!({
+            "path": wt, "label": "Agency staff", "orchestration": "Agency staff", "role": role, "plan": plan,
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn orchestrator_note_reads_role_and_plan() {
+        let (common, _parent, wt, _note) = note_fixture(|wt| {
+            orchestrator_note(
+                wt,
+                "orchestrator",
+                serde_json::json!([
+                    {"key":"1","name":"PR 1","title":"Rule","state":"merged","folder":"rule"},
+                    {"key":"5","name":"PR 5","title":"Set-up","after":"1","alsoAfter":["4"],"state":"active","folder":"set-up"},
+                    {"key":"6","after":"5"},
+                ]),
+            )
+        });
+        let note = read_worktree_note_in(common.path(), &wt).unwrap();
+        assert!(note.is_orchestrator);
+        assert_eq!(note.plan.len(), 3);
+        assert_eq!(
+            note.plan[1],
+            PlanItem {
+                key: "5".into(),
+                name: Some("PR 5".into()),
+                title: Some("Set-up".into()),
+                after: Some("1".into()),
+                also_after: vec!["4".into()],
+                state: PlanState::Active,
+                folder: Some("set-up".into()),
+            }
+        );
+        assert_eq!(
+            note.plan[2],
+            PlanItem {
+                key: "6".into(),
+                name: None,
+                title: None,
+                after: Some("5".into()),
+                also_after: vec![],
+                state: PlanState::Todo,
+                folder: None,
+            }
+        );
+        let json = serde_json::to_value(&note).unwrap();
+        assert_eq!(json["isOrchestrator"], true);
+        assert_eq!(json["plan"][1]["alsoAfter"][0], "4");
+        assert_eq!(json["plan"][0]["state"], "merged");
+    }
+
+    #[test]
+    fn plan_needs_the_orchestrator_role_and_an_orchestration() {
+        let plan = serde_json::json!([{"key":"1"}]);
+        let (common, _parent, wt, note) = note_fixture(|wt| orchestrator_note(wt, "helper", plan.clone()));
+        let read = read_worktree_note_in(common.path(), &wt).unwrap();
+        assert!(!read.is_orchestrator);
+        assert!(read.plan.is_empty());
+        assert_eq!(read.label.as_deref(), Some("Agency staff"));
+
+        let no_orchestration =
+            serde_json::json!({ "path": wt, "label": "Agency staff", "role": "orchestrator", "plan": plan }).to_string();
+        std::fs::write(&note, no_orchestration).unwrap();
+        let read = read_worktree_note_in(common.path(), &wt).unwrap();
+        assert!(!read.is_orchestrator);
+        assert!(read.plan.is_empty());
+        assert_eq!(read.label.as_deref(), Some("Agency staff"));
+    }
+
+    #[test]
+    fn plan_items_are_cleaned() {
+        let mut items = vec![
+            serde_json::json!({"name": "no key"}),
+            serde_json::json!("a string"),
+            serde_json::json!({"key": "dup", "title": "first"}),
+            serde_json::json!({"key": "dup", "title": "second"}),
+            serde_json::json!({"key": "123456789", "after": "123456789", "name": "n".repeat(60), "state": "building"}),
+        ];
+        let (common, _parent, wt, note) =
+            note_fixture(|wt| orchestrator_note(wt, "orchestrator", serde_json::Value::Array(items.clone())));
+        let plan = read_worktree_note_in(common.path(), &wt).unwrap().plan;
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].title.as_deref(), Some("first"));
+        assert_eq!(plan[1].key, "12345678");
+        assert_eq!(plan[1].after.as_deref(), Some("12345678"));
+        assert_eq!(plan[1].name, Some("n".repeat(40)));
+        assert_eq!(plan[1].state, PlanState::Todo);
+
+        items = (0..51).map(|i| serde_json::json!({ "key": i.to_string() })).collect();
+        std::fs::write(&note, orchestrator_note(&wt, "orchestrator", serde_json::Value::Array(items))).unwrap();
+        assert_eq!(read_worktree_note_in(common.path(), &wt).unwrap().plan.len(), 50);
+
+        std::fs::write(&note, orchestrator_note(&wt, "orchestrator", serde_json::json!("not a list"))).unwrap();
+        let read = read_worktree_note_in(common.path(), &wt).unwrap();
+        assert!(read.is_orchestrator);
+        assert!(read.plan.is_empty());
+        assert_eq!(read.label.as_deref(), Some("Agency staff"));
+    }
+
+    #[test]
+    fn note_size_limit_is_32_kb() {
+        let (common, _parent, wt, note) = note_fixture(|_| String::new());
+        let padded = |len: usize| serde_json::json!({ "path": wt, "label": "PR 2", "padding": "a".repeat(len) }).to_string();
+        std::fs::write(&note, padded(20 * 1024)).unwrap();
+        assert!(read_worktree_note_in(common.path(), &wt).is_some());
+        std::fs::write(&note, padded(32 * 1024 + 1)).unwrap();
+        assert!(read_worktree_note_in(common.path(), &wt).is_none());
     }
 
     // ── ensure_claude_excludes ─────────────────────────────────

@@ -356,7 +356,7 @@ pub struct Worktree {
 /// The parts of a worktree note Alfredo shows. The note is a JSON file an
 /// external tool keeps at `<common git dir>/alfredo/worktrees/<worktree folder
 /// name>.json`; Alfredo only ever reads it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeNote {
     /// Name to show for the worktree.
@@ -365,6 +365,40 @@ pub struct WorktreeNote {
     /// Name of the orchestration the worktree belongs to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orchestration: Option<String>,
+    /// True when the note says this worktree orchestrates its orchestration.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_orchestrator: bool,
+    /// The orchestrator's plan; always empty for any other worktree.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plan: Vec<PlanItem>,
+}
+
+/// One planned worktree in an orchestrator's plan.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanItem {
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also_after: Vec<String>,
+    pub state: PlanState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanState {
+    #[default]
+    Todo,
+    Active,
+    Merged,
+    Closed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
