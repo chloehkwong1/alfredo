@@ -513,3 +513,46 @@ export function orchestrationOf(
     o.items.some((item) => item.worktreeId === worktreeId),
   );
 }
+
+/** The plan item of a worktree: the one whose `folder` is the last part of the worktree's path. */
+export function planItemFor(orchestration: Orchestration, worktree: Pick<Worktree, "path">): PlanItem | undefined {
+  const folder = worktree.path.split("/").filter(Boolean).pop();
+  if (!folder) return undefined;
+  return orchestration.plan?.find((item) => item.folder === folder);
+}
+
+function joinNames(names: string[]): string {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** The grey line of the tooltip for one row. */
+export function markLine(orchestration: Orchestration, worktree: Pick<Worktree, "id" | "path">): string {
+  const { plan, items } = orchestration;
+  if (worktree.id === orchestration.orchestratorId) {
+    return plan
+      ? `Orchestrator · ${plan.filter((item) => item.state === "merged").length} of ${plan.length} merged`
+      : `Orchestrator · ${items.length} worktrees`;
+  }
+  const item = planItemFor(orchestration, worktree);
+  if (!plan || !item) return `${items.length} worktrees`;
+  const nameOf = (p: PlanItem) => p.name ?? p.key;
+  const named = (key: string | undefined) => plan.find((p) => p.key === key);
+  const parent = named(item.after);
+  const also = (item.alsoAfter ?? []).map(named).filter((p): p is PlanItem => p !== undefined);
+  const waiting = plan.filter((p) => p.after === item.key && p.state === "todo");
+  return [
+    nameOf(item),
+    parent ? `after ${nameOf(parent)}` : "",
+    also.length ? `also after ${joinNames(also.map(nameOf))}` : "",
+    waiting.length ? `${joinNames(waiting.map(nameOf))} ${waiting.length === 1 ? "waits" : "wait"} for it` : "",
+  ]
+    .filter((part) => part !== "")
+    .join(" · ");
+}
+
+/** The last line of the tooltip when the orchestration has no map, or null. */
+export function noPlanHint(orchestration: Orchestration): string | null {
+  if (orchestration.plan?.length || orchestration.fromLinks) return null;
+  return "No map: this orchestration has no plan. See Help › Worktree notes.";
+}

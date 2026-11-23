@@ -20,6 +20,8 @@ import {
   orchestrationMarks,
   orchestrationMarksFor,
   orchestrationOf,
+  markLine,
+  noPlanHint,
   type Orchestration,
   type SessionLinks,
 } from "./orchestrations";
@@ -952,5 +954,73 @@ describe("orchestrationOf", () => {
     const found = orchestrationOf("w", [head, w], {}, { "/r/h": "Billing" });
     expect(found?.name).toBe("Billing");
     expect(orchestrationOf("nope", [head, w], {}, {})).toBeUndefined();
+  });
+});
+
+describe("markLine", () => {
+  const plan: PlanItem[] = [
+    { key: "1", name: "PR 1", state: "merged", folder: "rule" },
+    { key: "2", name: "PR 2", after: "1", state: "active", folder: "payroll" },
+    { key: "5", name: "PR 5", after: "1", alsoAfter: ["4", "2"], state: "active", folder: "set-up" },
+    { key: "6", name: "PR 6", after: "5", state: "todo" },
+    { key: "7", after: "5", state: "todo" },
+  ];
+  const items = ["o", "a", "b", "c", "d"].map((worktreeId) => ({ worktreeId, title: worktreeId }));
+  const withPlan: Orchestration = { repoPath: "/r", name: "N", items, orchestratorId: "o", plan };
+  const noPlan: Orchestration = { repoPath: "/r", name: "N", items: items.slice(0, 3), orchestratorId: "o" };
+
+  it("names the item, its parents and what waits for it", () => {
+    expect(markLine(withPlan, { id: "b", path: "/r/set-up" })).toBe(
+      "PR 5 · after PR 1 · also after PR 2 · PR 6 and 7 wait for it",
+    );
+  });
+  it("leaves out the parts that are empty", () => {
+    expect(markLine(withPlan, { id: "a", path: "/r/rule" })).toBe("PR 1");
+  });
+  it("counts merged items for the orchestrator", () => {
+    expect(markLine(withPlan, { id: "o", path: "/r/orch" })).toBe("Orchestrator · 1 of 5 merged");
+  });
+  it("counts worktrees when there is no plan", () => {
+    expect(markLine(noPlan, { id: "o", path: "/r/orch" })).toBe("Orchestrator · 3 worktrees");
+    expect(markLine(noPlan, { id: "a", path: "/r/a" })).toBe("3 worktrees");
+  });
+  it("counts worktrees for a member that no plan item names", () => {
+    expect(markLine(withPlan, { id: "c", path: "/r/unknown" })).toBe("5 worktrees");
+  });
+  it("lists three waiting names with commas", () => {
+    const p: PlanItem[] = [
+      { key: "1", name: "A", state: "active", folder: "a" },
+      { key: "2", name: "B", after: "1", state: "todo" },
+      { key: "3", name: "C", after: "1", state: "todo" },
+      { key: "4", name: "D", after: "1", state: "todo" },
+    ];
+    expect(markLine({ ...withPlan, plan: p }, { id: "a", path: "/r/a" })).toBe("A · B, C and D wait for it");
+  });
+  it("says waits for a single name", () => {
+    const p: PlanItem[] = [
+      { key: "1", name: "A", state: "active", folder: "a" },
+      { key: "2", name: "B", after: "1", state: "todo" },
+    ];
+    expect(markLine({ ...withPlan, plan: p }, { id: "a", path: "/r/a" })).toBe("A · B waits for it");
+  });
+});
+
+describe("noPlanHint", () => {
+  const base: Orchestration = {
+    repoPath: "/r",
+    name: "N",
+    items: [
+      { worktreeId: "a", title: "a" },
+      { worktreeId: "b", title: "b" },
+    ],
+  };
+  it("tells a note or rule orchestration with no plan where to look", () => {
+    expect(noPlanHint(base)).toBe("No map: this orchestration has no plan. See Help › Worktree notes.");
+  });
+  it("is null with a plan", () => {
+    expect(noPlanHint({ ...base, plan: [{ key: "1", state: "todo" }] })).toBeNull();
+  });
+  it("is null for an orchestration made from links", () => {
+    expect(noPlanHint({ ...base, fromLinks: true })).toBeNull();
   });
 });

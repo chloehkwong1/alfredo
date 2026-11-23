@@ -12,6 +12,7 @@ import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, 
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAppConfigStore } from "../../stores/appConfigStore";
 import { nativeStackChipLabel } from "./StackGlyph";
+import { TooltipProvider } from "../ui/Tooltip";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
 import type { GlobalAppConfig, NativeStackInfo, PrStatus, Worktree } from "../../types";
@@ -724,7 +725,7 @@ describe("AgentItem render fan-out", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    await act(async () => { root.render(React.createElement("div", null, ...rows)); });
+    await act(async () => { root.render(React.createElement(TooltipProvider, null, React.createElement("div", null, ...rows))); });
     expect(container.textContent).toContain(`Running from ${head.branch}`);
     expect(container.textContent).not.toContain("Not running");
     // The linked row shows the busy colours: its own status is "not running".

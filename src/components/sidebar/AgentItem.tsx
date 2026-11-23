@@ -37,6 +37,8 @@ import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
+import { OrchestrationChip } from "./OrchestrationChip";
+import { orchestrationMarksFor, type OrchestrationMark } from "../../services/orchestrations";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
 import { stackChainsFor, stackHuesFor, detectAdoptableParent, type StackChain } from "../../lib/stackChain";
@@ -412,6 +414,7 @@ interface AgentItemContentProps {
   showRepoTag?: boolean;
   stackChain?: StackChain | null;
   stackHue?: number | null;
+  orchestrationMark?: OrchestrationMark | null;
   onOpenStackMap?: () => void;
   adoptableParent?: string | null;
   /** True while the popover is open (aria-expanded) and while set-up runs. */
@@ -432,7 +435,7 @@ function getDotColor(status: AgentState | string): string {
 function AgentItemContent({
   worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
-  repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
+  repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, orchestrationMark = null, onOpenStackMap = () => {},
   adoptableParent = null, adoptOpen = false, adoptWorking = false,
   onToggleAdopt = () => {}, onDismissAdoptCue = () => {},
   isMultiSelected = false, selectionActive = false, onToggleSelection,
@@ -542,6 +545,9 @@ function AgentItemContent({
             needsAttention={Boolean(stackChain?.selfNeedsAttention) || stackTrouble}
             hue={stackHue}
           />
+          {orchestrationMark && !worktree.archived && (
+            <OrchestrationChip worktreeId={worktree.id} mark={orchestrationMark} />
+          )}
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
               timestamp={worktree.lastActivityAt}
@@ -1068,6 +1074,13 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
   );
 }
 
+/** The orchestration mark of a worktree, or null. orchestrationMarksFor is
+ *  memoised and keeps a mark's identity while its content is the same, so the
+ *  row re-renders only when its own mark changes. */
+function useOrchestrationMark(worktreeId: string): OrchestrationMark | null {
+  return useWorkspaceStore((s) => orchestrationMarksFor(s.worktrees, s.orchestrationRules).get(worktreeId) ?? null);
+}
+
 /** Palette slot for this worktree's stack chips, or null for the accent tint.
  *  Hue-codes only when ≥2 stacks have at least one non-archived, non-branch-
  *  mode member (the gate deliberately counts rows hidden by collapse or the
@@ -1169,6 +1182,7 @@ const AgentItem = memo(function AgentItem({
     );
   }, [adoptableParent]);
   const stackHue = useStackHue(worktree.id);
+  const orchestrationMark = useOrchestrationMark(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
   usePopoverDismiss(stackMapOpen, rowContainerRef, stackMapFrameRef, () => setStackMapOpen(false));
@@ -1371,6 +1385,7 @@ const AgentItem = memo(function AgentItem({
       showRepoTag={showRepoTag}
       stackChain={stackChain}
       stackHue={stackHue}
+      orchestrationMark={orchestrationMark}
       onOpenStackMap={() => {
         // Mutually exclusive with the adopt popover — both anchor to the same
         // row coordinates (see handleToggleAdopt's mirror of this).
@@ -1630,5 +1645,5 @@ const AgentItem = memo(function AgentItem({
   );
 });
 
-export { AgentItem, AgentItemContent, useAgentItemState, useStackHue, getBorderClass };
+export { AgentItem, AgentItemContent, useAgentItemState, useStackHue, useOrchestrationMark, getBorderClass };
 export type { AgentItemProps };

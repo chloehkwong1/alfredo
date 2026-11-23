@@ -7,10 +7,14 @@ import type { PrStatus, Worktree } from "../../types";
 /** Shared chip styling; hue-coded when ≥2 stacks coexist (`hue` set by
  *  AgentItem), accent-tinted otherwise. `.stack-hue` lives in globals.css and
  *  reads the palette slot from the inline `--stack-chip-hue` property. */
+function chipTintClassName(hue: number | null | undefined): string {
+  return hue != null ? "stack-hue" : "text-accent-primary bg-accent-muted/40 hover:bg-accent-muted";
+}
+
 function chipClassName(hue: number | null | undefined): string {
   return [
     "relative flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] transition-colors cursor-pointer",
-    hue != null ? "stack-hue" : "text-accent-primary bg-accent-muted/40 hover:bg-accent-muted",
+    chipTintClassName(hue),
   ].join(" ");
 }
 
@@ -162,4 +166,4 @@ function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = fal
   );
 }
 
-export { StackGlyph, NativeStackChip, nativeStackChipLabel };
+export { StackGlyph, NativeStackChip, nativeStackChipLabel, chipTintClassName, chipStyle };

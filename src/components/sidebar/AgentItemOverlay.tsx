@@ -3,6 +3,7 @@ import {
   AgentItemContent,
   useAgentItemState,
   useStackHue,
+  useOrchestrationMark,
   getBorderClass,
   rowBoxClass,
 } from "./AgentItem";
@@ -35,6 +36,7 @@ function AgentItemOverlay({
   // Keeps the native-stack chip's hue during drag — without it the dragged
   // card's chip falls back to the accent tint while its row is hue-coded.
   const stackHue = useStackHue(worktree.id);
+  const orchestrationMark = useOrchestrationMark(worktree.id);
 
   // Peeking out below the card, so a batch reads as a deck rather than as one
   // card wearing a number. Two layers is enough — a third adds no information.
@@ -64,6 +66,7 @@ function AgentItemOverlay({
           prSummary={prSummary}
           displayLabel={worktreeDisplayLabel(worktree, label)}
           stackHue={stackHue}
+          orchestrationMark={orchestrationMark}
           isEditing={false}
           onStartEdit={() => {}}
           onCommitEdit={() => {}}
