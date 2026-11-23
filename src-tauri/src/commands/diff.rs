@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 use git2::{Delta, DiffFormat, DiffOptions, Repository, Sort};
 use serde::{Deserialize, Serialize};
@@ -827,42 +828,56 @@ pub async fn get_full_commits(repo_path: String, limit: Option<u32>) -> Result<V
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
-        let mut revwalk = repo
-            .revwalk()
-            .map_err(|e| AppError::Git(format!("revwalk failed: {e}")))?;
-        revwalk
-            .push(head_oid)
-            .map_err(|e| AppError::Git(format!("revwalk push failed: {e}")))?;
-        revwalk
-            .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
-            .map_err(|e| AppError::Git(format!("revwalk sorting failed: {e}")))?;
-
-        let cap = limit.unwrap_or(20) as usize;
-        let mut commits = Vec::with_capacity(cap);
-        for oid_result in revwalk {
-            if commits.len() >= cap {
-                break;
-            }
-            let oid = oid_result.map_err(|e| AppError::Git(format!("revwalk error: {e}")))?;
-            let commit = repo
-                .find_commit(oid)
-                .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
-            let hash = oid.to_string();
-            let short_hash = hash[..7.min(hash.len())].to_string();
-            commits.push(CommitInfo {
-                hash,
-                short_hash,
-                message: commit.message().unwrap_or("").to_string(),
-                author: commit.author().name().unwrap_or("Unknown").to_string(),
-                timestamp: commit.time().seconds(),
-            });
-        }
-
-        commits.reverse(); // chronological order: oldest first
-        Ok(commits)
+        newest_commits(&repo, head_oid, limit.unwrap_or(20) as usize)
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+/// The `cap` newest commits reachable from `head`, by committer date — the
+/// commits `git log -<cap>` shows — returned oldest first.
+///
+/// Not a libgit2 revwalk: any sort mode makes the walk "limited", and
+/// `prepare_walk` then reads every reachable commit before it yields the first
+/// one (libgit2 1.9.6 `revwalk.c`, `limit_list`). On an 80k-commit repo that
+/// cost ~20% of a core per call, and the Changes panel calls this every 10 s.
+/// This walk reads `cap` commits plus their parents.
+fn newest_commits(repo: &Repository, head: git2::Oid, cap: usize) -> Result<Vec<CommitInfo>> {
+    let find = |oid| {
+        repo.find_commit(oid)
+            .map_err(|e| AppError::Git(format!("find commit failed: {e}")))
+    };
+
+    // Max-heap on commit time. The sequence number breaks ties first-in,
+    // first-out, as git does, so a rebased chain that shares one timestamp
+    // still comes out child before parent.
+    let mut queue = BinaryHeap::from([(find(head)?.time().seconds(), Reverse(0u64), head)]);
+    let mut queued = HashSet::from([head]);
+    let mut next_seq = 1u64;
+
+    let mut commits = Vec::with_capacity(cap);
+    while commits.len() < cap {
+        let Some((_, _, oid)) = queue.pop() else { break };
+        let commit = find(oid)?;
+        for parent in commit.parents() {
+            if queued.insert(parent.id()) {
+                queue.push((parent.time().seconds(), Reverse(next_seq), parent.id()));
+                next_seq += 1;
+            }
+        }
+        let hash = oid.to_string();
+        let short_hash = hash[..7.min(hash.len())].to_string();
+        commits.push(CommitInfo {
+            hash,
+            short_hash,
+            message: commit.message().unwrap_or("").to_string(),
+            author: commit.author().name().unwrap_or("Unknown").to_string(),
+            timestamp: commit.time().seconds(),
+        });
+    }
+
+    commits.reverse(); // chronological order: oldest first
+    Ok(commits)
 }
 
 /// Get the git user.name configured for this repository.
@@ -2025,6 +2040,53 @@ mod tests {
         assert_eq!(kept.len(), 1, "merge commit should be filtered out");
         assert_eq!(kept[0], feature_oid, "only the feature commit should remain");
         assert!(!kept.contains(&merge_oid), "merge commit must not appear");
+    }
+
+    // ── newest_commits (get_full_commits' bounded walk) ──────
+
+    #[test]
+    fn newest_commits_stops_at_cap_and_returns_oldest_first() {
+        let (_dir, repo) = create_test_repo();
+        for n in 1..=5 {
+            create_commit(&repo, &format!("c{n}"));
+        }
+        let head = repo.head().unwrap().target().unwrap();
+
+        let messages: Vec<String> = newest_commits(&repo, head, 3)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.message)
+            .collect();
+
+        // create_commit stamps every commit with the same second, so this also
+        // pins the tie-break: a chain with one timestamp keeps child-before-parent.
+        assert_eq!(messages, ["c3", "c4", "c5"]);
+    }
+
+    #[test]
+    fn newest_commits_orders_merged_branches_by_date_without_duplicates() {
+        // base(100) ─┬─ main1(300) ──┬─ merge(400)
+        //            └─ feature(200) ┘
+        let (_dir, repo) = create_test_repo();
+        let tree = repo.find_tree(repo.index().unwrap().write_tree().unwrap()).unwrap();
+        let commit_at = |message: &str, seconds: i64, parents: &[git2::Oid]| {
+            let sig = git2::Signature::new("Test", "test@test.com", &git2::Time::new(seconds, 0)).unwrap();
+            let parents: Vec<git2::Commit> = parents.iter().map(|p| repo.find_commit(*p).unwrap()).collect();
+            let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+            repo.commit(None, &sig, &sig, message, &tree, &parent_refs).unwrap()
+        };
+        let base = commit_at("base", 100, &[]);
+        let feature = commit_at("feature", 200, &[base]);
+        let main1 = commit_at("main1", 300, &[base]);
+        let merge = commit_at("merge", 400, &[main1, feature]);
+
+        let messages: Vec<String> = newest_commits(&repo, merge, 10)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.message)
+            .collect();
+
+        assert_eq!(messages, ["base", "feature", "main1", "merge"]);
     }
 
     // ── get_diff_for_commit (exercises tree-to-tree diff for single commit) ─
