@@ -99,9 +99,23 @@ export interface StackPendingAction {
 
 /** What an external tool says a worktree is for, from its note file. Read by
  *  the backend at every listWorktrees; Alfredo never writes it. */
+export type PlanState = "todo" | "active" | "merged" | "closed";
+
+export interface PlanItem {
+  key: string;
+  name?: string;
+  title?: string;
+  after?: string;
+  alsoAfter?: string[];
+  state: PlanState;
+  folder?: string;
+}
+
 export interface WorktreeNote {
   label?: string;
   orchestration?: string;
+  isOrchestrator?: boolean;
+  plan?: PlanItem[];
 }
 
 export interface Worktree {

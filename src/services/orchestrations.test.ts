@@ -15,10 +15,11 @@ import {
   workedFromByWorktree,
   orchestrationsFromLinks,
   orchestrationsForRepo,
+  claimWorktrees,
   type Orchestration,
   type SessionLinks,
 } from "./orchestrations";
-import type { Worktree } from "../types";
+import type { PlanItem, Worktree } from "../types";
 
 function wt(overrides: Partial<Worktree> = {}): Worktree {
   return {
@@ -188,6 +189,39 @@ describe("orchestrationsFromNotes", () => {
         wt({ id: "b" }),
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("orchestrationsFromNotes with an orchestrator", () => {
+  const p1: PlanItem = { key: "p1", title: "Rule", state: "todo" };
+  it("puts the orchestrator first, titled `orchestrator`, with its plan", () => {
+    const a = wt({ id: "a", branch: "z", note: { label: "Agency staff", orchestration: "Agency staff", isOrchestrator: true, plan: [p1] } });
+    const b = wt({ id: "b", branch: "b", note: { label: "PR 1 · Rule", orchestration: "Agency staff" } });
+    const result = orchestrationsFromNotes("/r", [a, b]);
+    expect(result).toHaveLength(1);
+    expect(result[0].orchestratorId).toBe("a");
+    expect(result[0].plan).toEqual([p1]);
+    expect(result[0].items).toEqual([
+      { worktreeId: "a", title: "orchestrator" },
+      { worktreeId: "b", title: "PR 1 · Rule" },
+    ]);
+    expect(result[0].fromLinks).toBeUndefined();
+  });
+  it("takes the first orchestrator note; a second one is a plain item", () => {
+    const a = wt({ id: "a", branch: "a", note: { orchestration: "N", isOrchestrator: true } });
+    const c = wt({ id: "c", branch: "c", note: { label: "Second", orchestration: "N", isOrchestrator: true } });
+    const [o] = orchestrationsFromNotes("/r", [c, a]);
+    expect(o.orchestratorId).toBe("a");
+    expect(o.items).toEqual([
+      { worktreeId: "a", title: "orchestrator" },
+      { worktreeId: "c", title: "Second" },
+    ]);
+  });
+  it("has no orchestratorId and no plan when no note says orchestrator", () => {
+    const [o] = orchestrationsFromNotes("/r", [wt({ id: "a", note: { orchestration: "N", plan: [p1] } })]);
+    expect(o.orchestratorId).toBeUndefined();
+    expect(o.plan).toBeUndefined();
+    expect("orchestratorId" in o).toBe(false);
   });
 });
 
@@ -667,12 +701,22 @@ describe("orchestrationsFromLinks", () => {
       wt({ id: "r::term", path: "/wt/term", branch: "x", repoPath: "r", workedFrom: { running: true } }),
     ];
     expect(orchestrationsFromLinks("r", worktrees, { "/wt/orch": "Billing" })).toEqual([
-      { repoPath: "r", name: "Billing", items: [
+      { repoPath: "r", name: "Billing", orchestratorId: "r::orch", fromLinks: true, items: [
         { worktreeId: "r::orch", title: "orchestrator" },
         { worktreeId: "r::api", title: "jack/billing-api" },
         { worktreeId: "r::ui", title: "jack/billing-ui" },
       ] },
     ]);
+  });
+  it("sets orchestratorId to the head and fromLinks to true", () => {
+    const worktrees = [
+      wt({ id: "r::orch", path: "/wt/orch", branch: "o", repoPath: "r" }),
+      wt({ id: "r::ui", path: "/wt/ui", branch: "ui", repoPath: "r", workedFrom: { worktreeId: "r::orch", running: true } }),
+    ];
+    const [o] = orchestrationsFromLinks("r", worktrees, {});
+    expect(o.orchestratorId).toBe("r::orch");
+    expect(o.fromLinks).toBe(true);
+    expect(o.plan).toBeUndefined();
   });
   it("ignores a head in another repo", () => {
     const worktrees = [wt({ id: "r::b", repoPath: "r", workedFrom: { worktreeId: "other::a", running: true } })];
@@ -693,7 +737,7 @@ describe("orchestrationsForRepo", () => {
     expect(orchestrationsForRepo("r", [head, both, noted], rules, { "/wt/orch": "Billing" })).toEqual([
       { repoPath: "r", name: "Noted", items: [{ worktreeId: "r::n", title: "n" }] },
       { repoPath: "r", name: "Billing rule", items: [{ worktreeId: "r::api", title: "api" }] },
-      { repoPath: "r", name: "Billing", items: [
+      { repoPath: "r", name: "Billing", orchestratorId: "r::orch", fromLinks: true, items: [
         { worktreeId: "r::orch", title: "orchestrator" },
         { worktreeId: "r::api", title: "jack/billing-api" },
       ] },
@@ -704,9 +748,45 @@ describe("orchestrationsForRepo", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ worktreeId: "r::api", orchestrationName: "Billing rule", itemTitle: "api" });
   });
+  it("has no fromLinks on a note or rule orchestration", () => {
+    const noted = wt({ id: "r::n", path: "/wt/n", branch: "n", repoPath: "r", note: { orchestration: "Noted" } });
+    const [fromNote, fromRule] = orchestrationsForRepo("r", [noted, both], rules, {});
+    expect(fromNote.fromLinks).toBeUndefined();
+    expect(fromRule.fromLinks).toBeUndefined();
+  });
   it("lists only the given repo", () => {
     expect(orchestrationsForRepo("other", [head, both], rules, {})).toEqual([
       { repoPath: "other", name: "Billing rule", items: [] },
     ]);
+  });
+});
+
+describe("claimWorktrees", () => {
+  const link = (name: string, head: string, ids: string[]): Orchestration => ({
+    ...orch(name, ids),
+    orchestratorId: head,
+    fromLinks: true,
+  });
+  it("keeps a worktree only in the first orchestration that lists it", () => {
+    const result = claimWorktrees([orch("N", ["x", "y"]), link("L", "h", ["h", "x"])]);
+    expect(result.map((o) => o.items.map((i) => i.worktreeId))).toEqual([["x", "y"], ["h"]]);
+    expect(result[1].orchestratorId).toBe("h");
+    expect(result[1].fromLinks).toBe(true);
+  });
+  it("removes an orchestration left with no items", () => {
+    const result = claimWorktrees([orch("N", ["x"]), orch("M", ["x"])]);
+    expect(result.map((o) => o.name)).toEqual(["N"]);
+  });
+  it("clears orchestratorId when an earlier orchestration holds that worktree", () => {
+    const result = claimWorktrees([orch("N", ["h"]), link("L", "h", ["h", "z"])]);
+    expect(result[1].items.map((i) => i.worktreeId)).toEqual(["z"]);
+    expect(result[1].orchestratorId).toBeUndefined();
+    expect("orchestratorId" in result[1]).toBe(false);
+  });
+  it("keeps plan on the orchestration it returns", () => {
+    const plan: PlanItem[] = [{ key: "p1", state: "todo" }];
+    const [o] = claimWorktrees([{ ...orch("N", ["a"]), orchestratorId: "a", plan }]);
+    expect(o.plan).toEqual(plan);
+    expect(o.orchestratorId).toBe("a");
   });
 });

@@ -1,4 +1,4 @@
-import type { HookActivity, HookPhase, OrchestrationRule, Worktree, WorkedFrom } from "../types";
+import type { HookActivity, HookPhase, OrchestrationRule, PlanItem, Worktree, WorkedFrom } from "../types";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { worktreeEffectiveStatus, worktreeNeedsYou } from "./dockBadge";
 
@@ -11,6 +11,12 @@ export interface Orchestration {
   repoPath: string;
   name: string;
   items: OrchestrationItem[];
+  /** The worktree that runs the orchestration, when one is known. Always an item. */
+  orchestratorId?: string;
+  /** From the orchestrator's note. Absent when empty. */
+  plan?: PlanItem[];
+  /** Set only by `orchestrationsFromLinks`: Alfredo made it from a session's work, so no tool can give it a plan. */
+  fromLinks?: true;
 }
 
 export type YourTurnKind = "answer" | "check";
@@ -77,19 +83,35 @@ export function orchestrationsFromRules(
 
 /** One orchestration per `orchestration` name in the repo's worktree notes
  *  (archived included), in the order the names first appear among the sorted
- *  worktrees. Needs no rule. */
+ *  worktrees. Needs no rule. The first worktree whose note says
+ *  `isOrchestrator` is the orchestrator: it comes first, titled
+ *  `orchestrator`, and its plan is the orchestration's. */
 export function orchestrationsFromNotes(repoPath: string, worktrees: Worktree[]): Orchestration[] {
-  const itemsByName = new Map<string, OrchestrationItem[]>();
+  const byName = new Map<string, { orchestrator?: Worktree; members: Worktree[] }>();
   const ofRepo = worktrees.filter((wt) => wt.repoPath === repoPath).sort(byPrNumberThenBranch);
   for (const wt of ofRepo) {
-    const note = wt.note;
-    if (!note?.orchestration) continue;
-    const item = { worktreeId: wt.id, title: note.label ?? wt.branch };
-    const items = itemsByName.get(note.orchestration);
-    if (items) items.push(item);
-    else itemsByName.set(note.orchestration, [item]);
+    const name = wt.note?.orchestration;
+    if (!name) continue;
+    let entry = byName.get(name);
+    if (!entry) {
+      entry = { members: [] };
+      byName.set(name, entry);
+    }
+    if (wt.note?.isOrchestrator && !entry.orchestrator) entry.orchestrator = wt;
+    else entry.members.push(wt);
   }
-  return [...itemsByName].map(([name, items]) => ({ repoPath, name, items }));
+  return [...byName].map(([name, { orchestrator, members }]) => {
+    const items = members.map((wt) => ({ worktreeId: wt.id, title: wt.note?.label ?? wt.branch }));
+    if (!orchestrator) return { repoPath, name, items };
+    const plan = orchestrator.note?.plan;
+    return {
+      repoPath,
+      name,
+      items: [{ worktreeId: orchestrator.id, title: "orchestrator" }, ...items],
+      orchestratorId: orchestrator.id,
+      ...(plan?.length ? { plan } : {}),
+    };
+  });
 }
 
 /** Note orchestrations first, then rule orchestrations. A rule orchestration
@@ -122,6 +144,24 @@ export function mergeOrchestrations(
   return [...merged, ...fromRules.filter((rule) => !fromNotes.some((note) => isSame(note, rule)))];
 }
 
+/** Each worktree stays only in the first orchestration that lists it. An
+ *  orchestration left with no items is removed. An orchestrator that an
+ *  earlier orchestration holds is no longer this one's orchestrator. */
+export function claimWorktrees(orchestrations: Orchestration[]): Orchestration[] {
+  const claimed = new Set<string>();
+  const result: Orchestration[] = [];
+  for (const orchestration of orchestrations) {
+    const items = orchestration.items.filter((item) => !claimed.has(item.worktreeId));
+    for (const item of items) claimed.add(item.worktreeId);
+    if (items.length === 0) continue;
+    const { orchestratorId, ...rest } = orchestration;
+    const keepsOrchestrator =
+      orchestratorId !== undefined && items.some((item) => item.worktreeId === orchestratorId);
+    result.push({ ...rest, items, ...(keepsOrchestrator ? { orchestratorId } : {}) });
+  }
+  return result;
+}
+
 function kindOf(status: string): YourTurnKind {
   return status === "waitingForInput" ? "answer" : "check";
 }
@@ -147,14 +187,11 @@ export function yourTurnRows(
   since: Record<string, NeedsYouSince>,
 ): YourTurnRow[] {
   const byId = new Map(worktrees.map((wt) => [wt.id, wt]));
-  const claimed = new Set<string>();
   const rows: YourTurnRow[] = [];
-  for (const orchestration of orchestrations) {
+  for (const orchestration of claimWorktrees(orchestrations)) {
     for (const item of orchestration.items) {
-      if (claimed.has(item.worktreeId)) continue;
       const wt = byId.get(item.worktreeId);
       if (!wt || !worktreeNeedsYou(wt, seen, unread)) continue;
-      claimed.add(item.worktreeId);
       const status = worktreeEffectiveStatus(wt, seen, unread);
       const text = textFor(wt, status);
       rows.push({
@@ -352,6 +389,8 @@ export function orchestrationsFromLinks(
       repoPath,
       name: worktreeDisplayLabel(head, labels[head.path]),
       items: [{ worktreeId: head.id, title: "orchestrator" }, ...linked],
+      orchestratorId: head.id,
+      fromLinks: true as const,
     };
   });
 }
