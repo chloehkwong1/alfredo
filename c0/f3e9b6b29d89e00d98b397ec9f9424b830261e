@@ -1,0 +1,21 @@
+src/services/orchestrations.ts
+  s_aeb2bb1fcfc01a::t_45ce3c88d2889c 3,416-513
+src/services/orchestrations.test.ts
+  s_aeb2bb1fcfc01a::t_41d3f477b48335 19-22,797-919
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c0f3e9b6b29d89e00d98b397ec9f9424b830261e",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
