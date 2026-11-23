@@ -1,0 +1,23 @@
+docs/features/orchestrations.md
+  s_aeb2bb1fcfc01a::t_88432bdb6f99d8 3,98-166
+  s_aeb2bb1fcfc01a::t_ee55988a296aa3 167
+docs/features/external-worktrees.md
+  s_aeb2bb1fcfc01a::t_88432bdb6f99d8 3,66,68-69,94-95,104-155,158-161
+  s_aeb2bb1fcfc01a::t_ef2d1282217ec3 156-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32d60531640ccfdb83b7447a98a6237846b18aac",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
