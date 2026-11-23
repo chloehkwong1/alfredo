@@ -810,6 +810,10 @@ describe("shownOrchestrations", () => {
     const shown = shownOrchestrations([{ ...orch("N", ["a"]), orchestratorId: "a", plan }, orch("M", ["b"])]);
     expect(shown.map((o) => o.name)).toEqual(["N"]);
   });
+  it("drops an orchestration with one item and a plan but no orchestrator", () => {
+    const plan: PlanItem[] = [{ key: "p1", state: "todo" }];
+    expect(shownOrchestrations([{ ...orch("N", ["a"]), plan }])).toEqual([]);
+  });
 });
 
 describe("orchestrationMarks", () => {
@@ -840,6 +844,18 @@ describe("orchestrationMarks", () => {
     const list = [wt({ id: "a" }), wt({ id: "b" }), wt({ id: "c", archived: true }), wt({ id: "d", archived: true })];
     const marks = orchestrationMarks([orch("N", ["a", "b"]), orch("M", ["c", "d"])], list, new Map());
     expect(marks.get("a")?.hue).toBeNull();
+  });
+  it("does not count an orchestration whose only live item is in branch mode, and gives it no slot", () => {
+    const list = [wt({ id: "a" }), wt({ id: "b" }), wt({ id: "c", isBranchMode: true }), wt({ id: "d", archived: true })];
+    const marks = orchestrationMarks([orch("N", ["a", "b"]), orch("M", ["c", "d"])], list, new Map());
+    expect(marks.get("a")?.hue).toBeNull();
+    const three = [...list, wt({ id: "e" }), wt({ id: "f" })];
+    const withThird = orchestrationMarks(
+      [orch("N", ["a", "b"]), orch("M", ["c", "d"]), orch("P", ["e", "f"])],
+      three,
+      new Map(),
+    );
+    expect([withThird.get("a")?.hue, withThird.get("e")?.hue]).toEqual([0, 1]);
   });
   it("takes the slots after the ones stacks use", () => {
     const list = worktrees("a", "b", "c", "d");
@@ -893,6 +909,27 @@ describe("orchestrationMarksFor", () => {
     expect(before.get("a")?.hue).toBe(0);
     expect(after.get("a")).not.toBe(before.get("a"));
     expect(after.get("a")?.hue).toBeNull();
+  });
+  it("lists repo B's orchestrations first when B's worktrees come first", () => {
+    const inRepo = (repoPath: string, id: string, orchestration: string) =>
+      wt({ id, repoPath, path: `${repoPath}/${id}`, branch: id, note: { orchestration } });
+    const worktrees = [
+      inRepo("/b", "b1", "B"), inRepo("/b", "b2", "B"),
+      inRepo("/a", "a1", "A"), inRepo("/a", "a2", "A"),
+    ];
+    const marks = orchestrationMarksFor(worktrees, {});
+    expect([marks.get("b1")?.hue, marks.get("a1")?.hue]).toEqual([0, 1]);
+  });
+  it("takes the slots after the ones that stacks on screen use", () => {
+    const worktrees = [
+      wt({ id: "r1", path: "/r/r1", branch: "feat/r1" }),
+      wt({ id: "c1", path: "/r/c1", branch: "feat/c1", stackParent: "feat/r1" }),
+      wt({ id: "r2", path: "/r/r2", branch: "feat/r2" }),
+      wt({ id: "c2", path: "/r/c2", branch: "feat/c2", stackParent: "feat/r2" }),
+      noted("a", "N"), noted("b", "N"), noted("c", "M"), noted("d", "M"),
+    ];
+    const marks = orchestrationMarksFor(worktrees, {});
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([2, 3]);
   });
   it("gives one mark to a worktree that a note places and a session works in", () => {
     const worktrees = [

@@ -1,5 +1,6 @@
 import type { HookActivity, HookPhase, OrchestrationRule, PlanItem, Worktree, WorkedFrom } from "../types";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
+import { isVisibleWorktree } from "../lib/worktreeVisibility";
 import { STACK_HUE_COUNT, stackHuesFor } from "../lib/stackChain";
 import { worktreeEffectiveStatus, worktreeNeedsYou } from "./dockBadge";
 
@@ -421,10 +422,10 @@ export interface OrchestrationMark {
 }
 
 /** `claimWorktrees`, then drop each orchestration that has fewer than two
- *  items and no plan. An orchestrator with a plan keeps its tag while its
- *  worktrees do not exist yet. */
+ *  items, unless it has a plan and an orchestrator: that orchestrator keeps its
+ *  tag while its worktrees do not exist yet. A plan alone does not keep it. */
 export function shownOrchestrations(orchestrations: Orchestration[]): Orchestration[] {
-  return claimWorktrees(orchestrations).filter((o) => o.items.length >= 2 || o.plan !== undefined);
+  return claimWorktrees(orchestrations).filter((o) => o.items.length >= 2 || (o.plan !== undefined && o.orchestratorId !== undefined));
 }
 
 /** The mark of every worktree that is not archived and is in a shown orchestration. */
@@ -434,7 +435,8 @@ export function orchestrationMarks(
   stackHues: Map<string, number>,
 ): Map<string, OrchestrationMark> {
   const live = new Set(worktrees.filter((wt) => !wt.archived).map((wt) => wt.id));
-  const withRows = shown.filter((o) => o.items.some((item) => live.has(item.worktreeId)));
+  const visible = new Set(worktrees.filter(isVisibleWorktree).map((wt) => wt.id));
+  const withRows = shown.filter((o) => o.items.some((item) => visible.has(item.worktreeId)));
   const usedByStacks = new Set(stackHues.values());
   const free = Array.from({ length: STACK_HUE_COUNT }, (_, slot) => slot).filter(
     (slot) => !usedByStacks.has(slot),
