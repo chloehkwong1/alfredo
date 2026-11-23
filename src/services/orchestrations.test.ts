@@ -1076,6 +1076,19 @@ describe("planLayout", () => {
     expect(at(layout, "c")).toEqual({ key: "c", col: 1, row: 0 });
     expect(layout.edges).toEqual([{ from: "a", to: "c" }]);
   });
+  it("ignores an item whose key an earlier item has", () => {
+    const layout = planLayout([
+      { key: "p", state: "todo" },
+      { key: "q", state: "todo" },
+      { key: "q", after: "p", state: "todo" },
+      { key: "p", after: "q", state: "todo" },
+    ]);
+    expect(layout.nodes).toEqual([
+      { key: "p", col: 0, row: 0 },
+      { key: "q", col: 0, row: 1 },
+    ]);
+    expect(layout.edges).toEqual([]);
+  });
   it("returns an empty layout for an empty plan", () => {
     expect(planLayout([])).toEqual({ nodes: [], edges: [], cols: 0, rows: 0 });
   });

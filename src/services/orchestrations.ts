@@ -548,9 +548,11 @@ export interface PlanLayout {
  *  depth-first order and a parent sits at the mean of its first and last
  *  child. An item with no usable parent (none, missing, itself, or part of a
  *  cycle) is a root. */
-export function planLayout(plan: PlanItem[]): PlanLayout {
+export function planLayout(allItems: PlanItem[]): PlanLayout {
+  // The first item with a key wins; later ones with the same key are ignored.
   const byKey = new Map<string, PlanItem>();
-  for (const item of plan) if (!byKey.has(item.key)) byKey.set(item.key, item);
+  for (const item of allItems) if (!byKey.has(item.key)) byKey.set(item.key, item);
+  const plan = [...byKey.values()];
   const parentKeyOf = (item: PlanItem): string | undefined =>
     item.after !== undefined && item.after !== item.key && byKey.has(item.after) ? item.after : undefined;
   const inCycle = (item: PlanItem): boolean => {
@@ -583,7 +585,7 @@ export function planLayout(plan: PlanItem[]): PlanLayout {
     return row;
   };
   for (const root of roots) place(root, 0);
-  const placed = plan.filter((item) => byKey.get(item.key) === item).map((item) => nodes.get(item.key)!);
+  const placed = plan.map((item) => nodes.get(item.key)!);
   return {
     nodes: placed,
     edges,

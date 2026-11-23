@@ -61,7 +61,7 @@ function PlanMap({ orchestration, plan, here }: { orchestration: Orchestration; 
       viewBox={`0 0 ${width} ${height}`}
       width={width}
       height={height}
-      style={{ maxWidth: "100%", height: "auto" }}
+      style={{ maxWidth: "100%", maxHeight: 240, height: "auto" }}
       aria-label="Plan of the orchestration"
     >
       <path d={elbows} fill="none" stroke="var(--border-hover)" strokeWidth={1} />
@@ -139,16 +139,24 @@ function OrchestrationTooltipContent({ worktreeId, hue }: { worktreeId: string; 
 function OrchestrationChip({ worktreeId, mark }: { worktreeId: string; mark: OrchestrationMark }) {
   return (
     <Tooltip side="right" content={<OrchestrationTooltipContent worktreeId={worktreeId} hue={mark.hue} />}>
-      <span
-        className={[
-          "flex-shrink-0 inline-flex items-center justify-center rounded-[3px] cursor-default transition-colors",
-          mark.orchestrator ? "px-1.5 py-px text-[10px]" : "w-[18px] h-4",
-          chipTintClassName(mark.hue),
-        ].join(" ")}
-        style={chipStyle(mark.hue)}
-      >
-        {mark.orchestrator ? "orchestrator" : <Workflow size={11} aria-hidden="true" />}
-      </span>
+      {mark.orchestrator ? (
+        <span
+          className="flex-shrink-0 cursor-default text-[10px] font-semibold leading-[15px] px-1 rounded-[3px]"
+          style={{
+            color: markColor(mark.hue),
+            border: `1px solid color-mix(in srgb, ${markColor(mark.hue)} 45%, transparent)`,
+          }}
+        >
+          orchestrator
+        </span>
+      ) : (
+        <span
+          className={`flex-shrink-0 inline-flex items-center justify-center rounded-[3px] cursor-default transition-colors w-[18px] h-4 ${chipTintClassName(mark.hue)}`}
+          style={chipStyle(mark.hue)}
+        >
+          <Workflow size={11} aria-hidden="true" />
+        </span>
+      )}
     </Tooltip>
   );
 }
