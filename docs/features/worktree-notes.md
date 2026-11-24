@@ -10,6 +10,11 @@ pane tab bar, shown as a notebook icon with no label. There's exactly one
 per worktree — it can't be closed or duplicated, and it's always there when
 you open a worktree.
 
+Looking for the JSON note file that names a worktree or gives an
+orchestration its plan? That's a different thing: see
+[Worktrees created outside Alfredo appear automatically](external-worktrees.md)
+and [Orchestrations](orchestrations.md).
+
 The editor is rich text (WYSIWYG): use the toolbar or keyboard shortcuts for
 bold, italic, underline, strikethrough, bulleted lists, numbered lists, and
 task lists with clickable checkboxes. Just start typing — there's nothing to

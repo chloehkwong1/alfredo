@@ -1,11 +1,11 @@
 ---
 title: Orchestrations and "Your turn" — a list of the worktrees that need you
-keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note, running from, subagent, orchestrator, mark, tag, tooltip, plan, map, no map, worktree notes]
+keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note, running from, subagent, orchestrator, mark, tag, tooltip, plan, map, no map]
 ui_path: Sidebar — "Your turn" at the top; Repository settings → General → Orchestrations
 ---
 
 An orchestration is a name plus a branch prefix, or just a name that
-[worktree notes](external-worktrees.md) share (see **Without a rule**
+[worktree note files](external-worktrees.md) share (see **Without a rule**
 below). With a prefix, every worktree in the repo whose branch starts
 with it belongs to the orchestration. Rules are
 personal: they live in your own config, never in `alfredo.json`, so
@@ -24,7 +24,7 @@ now. Rows missing a name or a prefix are dropped when you save. The
 list updates as soon as you save; no restart.
 
 **Without a rule:** worktrees whose
-[worktree notes](external-worktrees.md)
+[worktree note files](external-worktrees.md)
 have the same `orchestration` form an orchestration with that name.
 They appear in **Your turn** with no rule. The item is the note's
 `label`, or the branch when the note has no label. A worktree whose
@@ -112,6 +112,10 @@ click: a click goes to the row, as a click on the name does.
 - With one orchestration on screen, the mark has the accent tint. With
   two or more, each has its own colour, from the same palette as the
   stack chips.
+- Colours are given in a fixed order: by repo, then by orchestration
+  name. An orchestration keeps its colour while the same orchestrations
+  are on screen. A colour can change when an orchestration, or a
+  stack, appears or goes.
 
 **Which worktree is the orchestrator:**
 
@@ -140,29 +144,42 @@ bottom:
    `Orchestrator · 1 of 4 merged`, or `Orchestrator · 3 worktrees`
    with no plan. A worktree with no plan item shows `3 worktrees`.
 4. With no plan, a last line in a lighter grey:
-   `No map: this orchestration has no plan. See Help › Worktree notes.`
+   `No map: this orchestration has no plan. See Help › Orchestrations.`
 
-The **no-map line** shows only for an orchestration that comes from
-worktree notes or from a rule. It never shows for an orchestration that
-Alfredo made from a session's work, because no tool can write a plan
-for that. To get a map, have your own orchestrator write the
-orchestrator's [worktree note](external-worktrees.md) with a `plan`.
-Alfredo only reads the note; it never writes one.
+**No map, and how to get one:** the no-map line means Alfredo knows
+which worktrees are in the orchestration, but nothing has given it a
+plan, so there is no map to draw. The line shows only for an
+orchestration that comes from worktree notes or from a rule. It never
+shows for an orchestration that Alfredo made from a session's work,
+because no tool can write a plan for that.
 
-**The map:** one square per plan item, with its `key` in it (a long key
-makes a wider square). An item with no `after`, or whose `after` names
-no item, sits at the left. Each child sits to the right of its parent,
-joined by a line. Siblings go top to bottom in plan order. An item that
-is part of a loop is drawn at the left. The map is at most 240 px high;
-a very large plan is scaled down to fit. The orchestrator has no
-square. The square of the row under the pointer has a ring. A square
+To get a map, one worktree note whose `orchestration` is this
+orchestration's name needs two fields:
+
+- `"role": "orchestrator"`, which makes its worktree the orchestrator;
+- `"plan"`, the list of the pieces of work.
+
+That worktree must be a linked worktree, not the repo's main checkout:
+Alfredo never reads a note for the main checkout. Whatever writes the
+note is yours, for example your own orchestrator or a script. Alfredo
+only reads the note; it never writes one. The fields are described
+under **Worktree note files** in
+[Worktrees created outside Alfredo appear automatically](external-worktrees.md).
+
+**The map:** one square per plan item, with its `key` in it. All
+squares are as wide as the longest key needs. An item with no `after`,
+or whose `after` names no item, sits at the left. Each child sits to
+the right of its parent, joined by a line. Siblings go top to bottom in
+plan order. An item that is part of a loop is drawn at the left. The
+tooltip widens to fit the map, which can be up to 320 px wide and
+240 px high. A larger plan is scaled down to fit. The orchestrator has
+no square. The square of the row under the pointer has a ring. A square
 looks like this:
 
 - **Merged:** green, filled.
 - **Closed:** grey, filled.
 - **Todo:** dashed outline.
-- **Active, and its worktree needs you:** the waiting colour, with a
-  glow.
+- **Active, and its worktree needs you:** blue, with a glow.
 - **Active, any other case:** amber.
 
 **What a row shows:**
@@ -174,9 +191,9 @@ looks like this:
   row shows which, then the orchestration name, the item and how long.
 
 The item is the branch after the prefix, or the name from a worktree
-note. In an orchestration made from links, the item is `orchestrator`
-for the session's own worktree, and the row's name for a worktree the
-session works in.
+note. The orchestrator's worktree is the item `orchestrator`, whether
+the orchestration comes from notes or from links. In an orchestration
+made from links, a worktree the session works in is the row's name.
 
 Click a row to open that worktree. That is all it does. The list
 ignores **Pinned only**.

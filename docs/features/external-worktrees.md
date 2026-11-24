@@ -1,6 +1,6 @@
 ---
 title: Worktrees created outside Alfredo appear automatically
-keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker, worktree note, worktree notes, name a worktree, label, orchestration, role, orchestrator, plan, map, plan item, alsoAfter]
+keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker, worktree note, name a worktree, label, orchestration, role, orchestrator, plan, map, plan item, alsoAfter]
 ui_path: N/A — automatic; new worktrees appear in the sidebar within seconds
 ---
 
@@ -63,7 +63,7 @@ sends its own first prompt.
 - Only worktrees created while Alfredo runs are adopted, so a marker
   for a worktree that existed at launch does nothing.
 
-## Worktree notes
+## Worktree note files
 
 A tool can give a worktree a name, put it in an orchestration, and make
 it the orchestrator, by writing a worktree note. The note is one JSON file at
@@ -145,6 +145,10 @@ script can write it, and Alfredo does not care which. Alfredo shows the
     map. `alsoAfter` is a list of keys of other items it waits for. It
     draws no line; it shows only in the tooltip's grey line, as
     `also after PR 4`.
+  - `key`, `after` and each entry of `alsoAfter` must be JSON strings:
+    `"key": "5"`, not `"key": 5`. An item whose key is not a string is
+    dropped. An `after` that is not a string counts as none, and an
+    `alsoAfter` entry that is not a string is left out.
   - `state` is `todo`, `active`, `merged` or `closed`. Anything else,
     or none, counts as `todo`.
   - `folder` is the folder name of the item's worktree, when it has
@@ -152,10 +156,21 @@ script can write it, and Alfredo does not care which. Alfredo shows the
     the row under the pointer and to show whether that worktree needs
     you.
 - The plan is cut at 50 items.
+- A plan item finds its worktree only when that worktree is in the same
+  orchestration: the worktree needs its own note with the same
+  `orchestration`, or a rule with that orchestration's name must match
+  its branch. A worktree that only a session's work links to the
+  orchestrator is listed in a second orchestration, made from those
+  links. It gets a mark there when that orchestration has two rows or
+  more, but no square of the map is ringed for it, and its square does
+  not show when it needs you.
+- Alfredo reads notes for the repo's linked worktrees only. A note for
+  the main checkout is never read, so the orchestrator must be a linked
+  worktree to carry a plan.
 - If two notes in one repo say `orchestrator` for the same
-  orchestration, the one whose worktree has the lower PR number wins; with no PR
-  numbers, the one whose branch sorts first. The other is a
-  plain member.
+  orchestration, one wins in this order: a worktree with a PR number
+  comes before one without, then the lower PR number, then the branch
+  name that sorts first. The other is a plain member.
 
 See [Orchestrations](orchestrations.md) for how the tag, the mark and
 the map look.
