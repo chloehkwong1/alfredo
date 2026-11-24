@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   shouldAcceptDetectorState,
   hibernateBlocker,
+  shouldLogHibernateBlocker,
+  HIBERNATE_BLOCKER_RELOG_MS,
   type HibernateCandidate,
   SessionManager,
   computeOrphanSweep,
@@ -134,6 +136,38 @@ describe("hibernateBlocker", () => {
     expect(
       hibernateBlocker(candidate({ agentState: "busy", lastOutputAt: NOW - 60_000 }), NOW, IDLE_MS),
     ).toBe("agent not idle");
+  });
+
+  it("tells a session that never printed apart from one that printed recently", () => {
+    expect(hibernateBlocker(candidate({ lastOutputAt: 0 }), NOW, IDLE_MS)).toBe("no output yet");
+  });
+});
+
+describe("shouldLogHibernateBlocker", () => {
+  const NOW = 100 * HIBERNATE_BLOCKER_RELOG_MS;
+
+  it("logs a Claude tab's first blocker", () => {
+    expect(shouldLogHibernateBlocker(undefined, "recent output", true, NOW)).toBe(true);
+  });
+
+  it("stays quiet when the same blocker was logged within the hour", () => {
+    const lastLogged = { blocker: "recent output" as const, at: NOW - 60_000 };
+    expect(shouldLogHibernateBlocker(lastLogged, "recent output", true, NOW)).toBe(false);
+  });
+
+  it("logs the same blocker again an hour on, so a stuck tab keeps showing up", () => {
+    const lastLogged = { blocker: "recent output" as const, at: NOW - HIBERNATE_BLOCKER_RELOG_MS };
+    expect(shouldLogHibernateBlocker(lastLogged, "recent output", true, NOW)).toBe(true);
+  });
+
+  it("logs a change of blocker straight away", () => {
+    const lastLogged = { blocker: "recent output" as const, at: NOW - 60_000 };
+    expect(shouldLogHibernateBlocker(lastLogged, "recent hook", true, NOW)).toBe(true);
+  });
+
+  it("never logs a visible tab or a tab that isn't Claude", () => {
+    expect(shouldLogHibernateBlocker(undefined, "visible", true, NOW)).toBe(false);
+    expect(shouldLogHibernateBlocker(undefined, "no resume id", false, NOW)).toBe(false);
   });
 });
 

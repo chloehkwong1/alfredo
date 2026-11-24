@@ -173,6 +173,7 @@ export type HibernateBlocker =
   | "remote controlled"
   | "agent not idle"
   | "work in flight"
+  | "no output yet"
   | "recent output"
   | "recent hook";
 
@@ -192,7 +193,8 @@ export function hibernateBlocker(c: HibernateCandidate, now: number, idleMs: num
   if (c.remoteControlled) return "remote controlled";
   if (s.agentState !== "idle") return "agent not idle";
   if (s.workDepth > 0 || s.subagentDepth > 0 || s.monitorPending || s.awaitingAnswer) return "work in flight";
-  if (s.lastOutputAt <= 0 || now - s.lastOutputAt < idleMs) return "recent output";
+  if (s.lastOutputAt <= 0) return "no output yet";
+  if (now - s.lastOutputAt < idleMs) return "recent output";
   if (s.lastHookAt > 0 && now - s.lastHookAt < idleMs) return "recent hook";
   return null;
 }
@@ -200,6 +202,26 @@ export function hibernateBlocker(c: HibernateCandidate, now: number, idleMs: num
 /** Blockers that say nothing about why an idle session stays up, so the
  *  diagnostic log skips them: tab switches alone would flood it. */
 const UNLOGGED_HIBERNATE_BLOCKERS: ReadonlySet<HibernateBlocker> = new Set(["disabled", "not running", "visible"]);
+
+/** How often an unchanged blocker is logged again. Without a repeat, a tab
+ *  stuck on one reason logs a single line the moment it is hidden, which
+ *  looks the same as a tab that was in use a minute ago. */
+export const HIBERNATE_BLOCKER_RELOG_MS = 60 * 60_000;
+
+/**
+ * Whether the hibernation diagnostic logs `blocker` now: a reason that
+ * differs from the last one logged, or the same reason an hour on. Only
+ * Claude tabs are logged — shells, Codex and Gemini never hibernate.
+ */
+export function shouldLogHibernateBlocker(
+  lastLogged: { blocker: HibernateBlocker; at: number } | undefined,
+  blocker: HibernateBlocker,
+  claudeTab: boolean,
+  now: number,
+): boolean {
+  if (!claudeTab || UNLOGGED_HIBERNATE_BLOCKERS.has(blocker)) return false;
+  return lastLogged?.blocker !== blocker || now - lastLogged.at >= HIBERNATE_BLOCKER_RELOG_MS;
+}
 
 // ── SessionManager ─────────────────────────────────────────────
 
@@ -224,8 +246,8 @@ export class SessionManager implements SessionWriter {
   private hibernateIdleMs = HIBERNATE_IDLE_DEFAULT_MINUTES * 60_000;
   private lastHibernateCheckAt = 0;
   private hibernating = new Set<string>();
-  /** Last hibernation blocker per session, so the diagnostic logs changes only. */
-  private hibernateBlockers = new Map<string, HibernateBlocker | null>();
+  /** Last hibernation blocker logged per session — see shouldLogHibernateBlocker. */
+  private loggedHibernateBlockers = new Map<string, { blocker: HibernateBlocker; at: number }>();
 
   /** Orphan-sweep bookkeeping — see computeOrphanSweep. */
   private lastOrphanSweepAt = 0;
@@ -447,6 +469,9 @@ export class SessionManager implements SessionWriter {
     if (this.hibernateIdleMs <= 0) return;
     if (now - this.lastHibernateCheckAt < HIBERNATE_CHECK_INTERVAL_MS) return;
     this.lastHibernateCheckAt = now;
+    for (const key of this.loggedHibernateBlockers.keys()) {
+      if (!this.sessions.has(key)) this.loggedHibernateBlockers.delete(key);
+    }
     const tabs = useTabStore.getState().tabs;
     const rc = useRemoteControlStore.getState();
     for (const [sessionKey, session] of this.sessions.entries()) {
@@ -459,11 +484,11 @@ export class SessionManager implements SessionWriter {
         remoteControlled: rc.isActive(sessionKey),
       };
       const blocker = hibernateBlocker(candidate, now, this.hibernateIdleMs);
-      // Diagnostic: log each change of reason, so a tab that never hibernates
-      // shows why in alfredo.log without a line every 30 s.
-      if (blocker !== this.hibernateBlockers.get(sessionKey)) {
-        this.hibernateBlockers.set(sessionKey, blocker);
-        if (blocker !== null && !UNLOGGED_HIBERNATE_BLOCKERS.has(blocker)) {
+      if (blocker !== null) {
+        // Diagnostic: say why a tab that never hibernates stays up.
+        const lastLogged = this.loggedHibernateBlockers.get(sessionKey);
+        if (shouldLogHibernateBlocker(lastLogged, blocker, tab?.type === "claude", now)) {
+          this.loggedHibernateBlockers.set(sessionKey, { blocker, at: now });
           const ago = (t: number) => (t > 0 ? `${Math.round((now - t) / 60_000)}m ago` : "never");
           debugLog(
             `[hibernate] ${sessionKey} kept: ${blocker} (state=${session.agentState}, ` +
@@ -472,8 +497,8 @@ export class SessionManager implements SessionWriter {
               `awaiting=${session.awaitingAnswer})`,
           ).catch(() => {});
         }
+        continue;
       }
-      if (blocker !== null) continue;
       this.hibernateSession(sessionKey).catch((e) =>
         console.warn(`[hibernate] ${sessionKey} failed:`, e),
       );
@@ -1306,7 +1331,6 @@ export class SessionManager implements SessionWriter {
     useSessionStatusStore.getState().clearSessionStatus(sessionKey);
 
     this.sessions.delete(sessionKey);
-    this.hibernateBlockers.delete(sessionKey);
     if (this.sessions.size === 0) this.stopReconciler();
     try {
       await closePty(session.sessionId);
