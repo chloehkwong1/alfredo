@@ -1,0 +1,21 @@
+docs/features/orchestrations.md
+  s_8aff2079d24fda::t_485dc5c2afb622 64-66
+src/services/dockBadge.ts
+  s_8aff2079d24fda::t_485dc5c2afb622 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0588c71ae58231dffd4ce4a2460bf13a033d54c9",
+  "prompts": {},
+  "sessions": {
+    "s_8aff2079d24fda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0d50f41-b914-418b-a4ae-4310d3896a73",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
