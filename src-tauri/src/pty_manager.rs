@@ -585,7 +585,6 @@ impl PtyManager {
                         state: AgentState::NotRunning,
                         notify: NotifyReason::None,
                         phase: HookPhase::None,
-                        question: None,
                         activity: None,
                     }) {
                         eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");

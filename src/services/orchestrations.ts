@@ -2,7 +2,7 @@ import type { HookActivity, HookPhase, OrchestrationRule, PlanItem, Worktree, Wo
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { isVisibleWorktree } from "../lib/worktreeVisibility";
 import { STACK_HUE_COUNT, stackHuesFor } from "../lib/stackChain";
-import { worktreeEffectiveStatus, worktreeNeedsYou } from "./dockBadge";
+import { worktreeNeedsYou } from "./dockBadge";
 
 export interface OrchestrationItem {
   worktreeId: string;
@@ -19,24 +19,6 @@ export interface Orchestration {
   plan?: PlanItem[];
   /** Set only by `orchestrationsFromLinks`: Alfredo made it from a session's work, so no tool can give it a plan. */
   fromLinks?: true;
-}
-
-export type YourTurnKind = "answer" | "check";
-
-export interface YourTurnRow {
-  worktreeId: string;
-  kind: YourTurnKind;
-  text: string;
-  fullText: string;
-  orchestrationName: string;
-  itemTitle: string;
-  since: number;
-}
-
-/** In memory only; never persisted. */
-export interface NeedsYouSince {
-  kind: YourTurnKind;
-  at: number;
 }
 
 /** Trim name and prefix; rows missing either are dropped, not saved half-filled. */
@@ -162,87 +144,6 @@ export function claimWorktrees(orchestrations: Orchestration[]): Orchestration[]
     result.push({ ...rest, items, ...(keepsOrchestrator ? { orchestratorId } : {}) });
   }
   return result;
-}
-
-function kindOf(status: string): YourTurnKind {
-  return status === "waitingForInput" ? "answer" : "check";
-}
-
-function textFor(wt: Worktree, status: string): string {
-  switch (status) {
-    case "waitingForInput":
-      return wt.question?.text || "Waiting for input";
-    case "error":
-      return "Error";
-    case "ready":
-      return "Ready to start";
-    default:
-      return "Finished";
-  }
-}
-
-export function yourTurnRows(
-  orchestrations: Orchestration[],
-  worktrees: Worktree[],
-  seen: Set<string>,
-  unread: Set<string>,
-  since: Record<string, NeedsYouSince>,
-): YourTurnRow[] {
-  const byId = new Map(worktrees.map((wt) => [wt.id, wt]));
-  const rows: YourTurnRow[] = [];
-  for (const orchestration of claimWorktrees(orchestrations)) {
-    for (const item of orchestration.items) {
-      const wt = byId.get(item.worktreeId);
-      if (!wt || !worktreeNeedsYou(wt, seen, unread)) continue;
-      const status = worktreeEffectiveStatus(wt, seen, unread);
-      const text = textFor(wt, status);
-      rows.push({
-        worktreeId: wt.id,
-        kind: kindOf(status),
-        text,
-        fullText: text,
-        orchestrationName: orchestration.name,
-        itemTitle: item.title,
-        // A worktree not yet tracked sorts last; as an age it reads "now".
-        since: since[wt.id]?.at ?? Number.POSITIVE_INFINITY,
-      });
-    }
-  }
-  return rows.sort((a, b) => a.since - b.since);
-}
-
-export function nextNeedsYouSince(
-  prev: Record<string, NeedsYouSince>,
-  worktrees: Worktree[],
-  seen: Set<string>,
-  unread: Set<string>,
-  now: number,
-): Record<string, NeedsYouSince> {
-  const next: Record<string, NeedsYouSince> = {};
-  let changed = false;
-  for (const wt of worktrees) {
-    if (!worktreeNeedsYou(wt, seen, unread)) continue;
-    const kind = kindOf(worktreeEffectiveStatus(wt, seen, unread));
-    const existing = prev[wt.id];
-    if (existing?.kind === kind) {
-      next[wt.id] = existing;
-      continue;
-    }
-    // answer -> check keeps the age; check -> answer (or a new entry) restarts it.
-    next[wt.id] = { kind, at: existing && kind === "check" ? existing.at : now };
-    changed = true;
-  }
-  if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
-  return next;
-}
-
-export function formatWaitingAge(since: number, now: number): string {
-  const minutes = Math.floor(Math.max(0, now - since) / 60_000);
-  if (minutes < 1) return "now";
-  if (minutes < 120) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours} h`;
-  return `${Math.floor(hours / 24)} d`;
 }
 
 /** One session's work in one other worktree. `agentIds`: its sub-agents working there now. */
@@ -398,7 +299,7 @@ export function orchestrationsFromLinks(
 }
 
 /** A repo's orchestrations: those from notes and rules first, then those from
- *  links. `yourTurnRows` gives a worktree to the first orchestration that
+ *  links. `claimWorktrees` gives a worktree to the first orchestration that
  *  lists it, so a link never moves a worktree that a note or a rule places. */
 export function orchestrationsForRepo(
   repoPath: string,

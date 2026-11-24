@@ -35,7 +35,7 @@ export function startStatusMirror(): void {
 
   const sync = () => {
     const { tabs } = useTabStore.getState();
-    const { statuses, questions, links, external } = useSessionStatusStore.getState();
+    const { statuses, links, external } = useSessionStatusStore.getState();
     const { worktrees, updateWorktree } = useWorkspaceStore.getState();
 
     let workedFrom: Record<string, WorkedFrom> | undefined;
@@ -59,9 +59,6 @@ export function startStatusMirror(): void {
     for (const wt of worktrees) {
       const agentTabs = (tabs[wt.id] ?? []).filter(isAgentTab);
       let projected: AgentState = "notRunning";
-      const question = agentTabs.find((tab) => statuses[tab.id] === "waitingForInput" && questions[tab.id])
-        ?.id;
-      const projectedQuestion = question ? questions[question] : undefined;
       for (const tab of agentTabs) {
         const state = statuses[tab.id];
         if (!state) continue;
@@ -69,17 +66,14 @@ export function startStatusMirror(): void {
           projected = state;
         }
       }
-      const questionChanged =
-        wt.question?.text !== projectedQuestion?.text || wt.question?.header !== projectedQuestion?.header;
       // Compared by value: `workedFromByWorktree` builds fresh objects on every call.
       const projectedWorkedFrom = workedFrom?.[wt.id];
       const workedFromChanged =
         wt.workedFrom?.worktreeId !== projectedWorkedFrom?.worktreeId ||
         wt.workedFrom?.running !== projectedWorkedFrom?.running;
-      if (wt.agentStatus !== projected || questionChanged || workedFromChanged) {
+      if (wt.agentStatus !== projected || workedFromChanged) {
         updateWorktree(wt.id, {
           agentStatus: projected,
-          question: projectedQuestion,
           ...(workedFromChanged && { workedFrom: projectedWorkedFrom }),
         });
         // That write ran `sync` again on the new worktrees (the mirror

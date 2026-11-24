@@ -8,7 +8,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, HookActivity, HookPhase, HookQuestion, NotifyReason, PtyEvent};
+use crate::types::{AgentState, HookActivity, HookPhase, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
 /// Per-session registration details.
@@ -181,31 +181,6 @@ fn parse_state(s: &str) -> Option<AgentState> {
     }
 }
 
-/// Extracts the question the agent is parked on from a PreToolUse hook body.
-/// AskUserQuestion yields its first question; ExitPlanMode a fixed label.
-/// Anything else (empty, malformed, other tools, blank text) is `None`.
-fn parse_hook_question(body: &[u8]) -> Option<HookQuestion> {
-    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
-    match v.get("tool_name")?.as_str()? {
-        "ExitPlanMode" => Some(HookQuestion { text: "Plan ready for review".to_string(), header: None }),
-        "AskUserQuestion" => {
-            let first = v.get("tool_input")?.get("questions")?.as_array()?.first()?;
-            let text = first.get("question")?.as_str()?.trim();
-            if text.is_empty() {
-                return None;
-            }
-            let header = first
-                .get("header")
-                .and_then(|h| h.as_str())
-                .map(str::trim)
-                .filter(|h| !h.is_empty())
-                .map(str::to_string);
-            Some(HookQuestion { text: text.to_string(), header })
-        }
-        _ => None,
-    }
-}
-
 #[derive(serde::Deserialize)]
 struct HookBody {
     cwd: Option<String>,
@@ -281,11 +256,6 @@ async fn handle_state_update(
     // held across an .await). Oversized or broken bodies are `None`: the
     // status update is still delivered.
     let bytes = axum::body::to_bytes(body, HOOK_BODY_LIMIT_BYTES).await.ok();
-    let question = if state == AgentState::WaitingForInput {
-        bytes.as_deref().and_then(parse_hook_question)
-    } else {
-        None
-    };
     let activity = bytes.as_deref().and_then(parse_hook_activity);
 
     let Ok(mut reg) = router_state.registry.lock() else {
@@ -304,7 +274,7 @@ async fn handle_state_update(
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
-        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase, question, activity });
+        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase, activity });
         let registered = reg.channels.len();
         match send_result {
             Ok(()) => tracing::info!("[state-server] → {desc} (SEND OK, registered={registered})"),
@@ -419,44 +389,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parse_hook_question_reads_first_question() {
-        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"Error copy"},{"question":"Second?","header":"B"}]}}"#;
-        let q = parse_hook_question(body).unwrap();
-        assert_eq!(q.text, "Which copy?");
-        assert_eq!(q.header.as_deref(), Some("Error copy"));
-    }
-
-    #[test]
-    fn parse_hook_question_exit_plan_mode() {
-        let q = parse_hook_question(br#"{"tool_name":"ExitPlanMode","tool_input":{"plan":"..."}}"#).unwrap();
-        assert_eq!(q.text, "Plan ready for review");
-        assert_eq!(q.header, None);
-    }
-
-    #[test]
-    fn parse_hook_question_rejects_other_input() {
-        assert!(parse_hook_question(b"").is_none());
-        assert!(parse_hook_question(b"not json").is_none());
-        assert!(parse_hook_question(br#"{"tool_name":"Bash","tool_input":{"command":"ls"}}"#).is_none());
-        assert!(parse_hook_question(br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[]}}"#).is_none());
-        assert!(parse_hook_question(br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"   "}]}}"#).is_none());
-    }
-
-    /// Posts a waitingForInput hook with `body` and returns the `question`
-    /// carried by the event the session's channel received.
-    async fn post_waiting_with_body(body: Vec<u8>) -> Option<HookQuestion> {
-        post_with_body("waitingForInput", body).await
-    }
-
-    async fn post_with_body(state: &str, body: Vec<u8>) -> Option<HookQuestion> {
-        let data = post_and_read_data(state, "notify=input&phase=toolStart", body).await;
-        data.get("question").map(|q| HookQuestion {
-            text: q["text"].as_str().unwrap().to_string(),
-            header: q["header"].as_str().map(str::to_string),
-        })
-    }
-
     /// Posts a hook and returns the whole `data` object of the single event
     /// the session's channel received.
     async fn post_and_read_data(state: &str, query: &str, body: Vec<u8>) -> serde_json::Value {
@@ -484,27 +416,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handler_delivers_question_from_body() {
-        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"H"}]}}"#;
-        let q = post_waiting_with_body(body.to_vec()).await.unwrap();
-        assert_eq!(q.text, "Which copy?");
-        assert_eq!(q.header.as_deref(), Some("H"));
-    }
-
-    #[tokio::test]
-    async fn handler_ignores_question_body_for_busy_state() {
-        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"H"}]}}"#;
-        assert_eq!(post_with_body("busy", body.to_vec()).await, None);
-    }
-
-    #[tokio::test]
     async fn handler_without_body_still_delivers_status() {
-        assert_eq!(post_waiting_with_body(Vec::new()).await, None);
+        let data = post_and_read_data("waitingForInput", "notify=input&phase=toolStart", Vec::new()).await;
+        assert_eq!(data["state"], "waitingForInput");
     }
 
     #[tokio::test]
     async fn handler_with_oversized_body_still_delivers_status() {
-        assert_eq!(post_waiting_with_body(vec![b'x'; 100 * 1024]).await, None);
+        let data = post_and_read_data("waitingForInput", "notify=input&phase=toolStart", vec![b'x'; 100 * 1024]).await;
+        assert_eq!(data["state"], "waitingForInput");
     }
 
     #[test]
@@ -547,7 +467,6 @@ mod tests {
         assert_eq!(data["activity"]["cwd"], "/wt/b");
         assert_eq!(data["activity"]["agentId"], "a1");
         assert!(data["activity"].get("writePath").is_none());
-        assert!(data.get("question").is_none());
     }
 
     #[tokio::test]

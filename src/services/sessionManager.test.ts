@@ -54,27 +54,6 @@ describe("loadScrollbackOnly tiered-scrollback restore", () => {
   });
 });
 
-describe("open question lifecycle", () => {
-  it("is dropped when a session hibernates", async () => {
-    const manager = new SessionManager();
-    const s = manager.loadScrollbackOnly("wt-h", "wt-h", undefined, "/wt/h");
-    s.sessionId = "pty-h";
-    useSessionStatusStore.getState().setSessionQuestion("wt-h", { text: "Which copy?" });
-    await manager.hibernateSession("wt-h");
-    expect(useSessionStatusStore.getState().questions["wt-h"]).toBeUndefined();
-    await manager.closeAll();
-  });
-
-  it("is dropped when a session respawns", async () => {
-    const manager = new SessionManager();
-    manager.loadScrollbackOnly("wt-r", "wt-r", undefined, "/wt/r");
-    useSessionStatusStore.getState().setSessionQuestion("wt-r", { text: "Which copy?" });
-    await manager.spawnForExisting("wt-r", "wt-r", "/wt/r");
-    expect(useSessionStatusStore.getState().questions["wt-r"]).toBeUndefined();
-    await manager.closeAll();
-  });
-});
-
 describe("reloadStaleRenderers", () => {
   it("drops a WebGL renderer loaded at another devicePixelRatio and keeps a current one", async () => {
     const manager = new SessionManager();
@@ -757,24 +736,6 @@ describe("applyRegistrySnapshot", () => {
     expect(s.agentState).toBe("idle");
     expect(s.subagentDepth).toBe(0);
     expect(s.monitorPending).toBe(false);
-  });
-
-  it("drops the open question when the registry forces idle", () => {
-    const manager = new SessionManager();
-    const s = manager.loadScrollbackOnly("wt-q", "wt-q", undefined, "/wt/q");
-    s.hooksActive = true;
-    s.agentState = "waitingForInput";
-    s.lastHookAt = Date.now() - 30_000;
-    useSessionStatusStore.getState().setSessionQuestion("wt-q", { text: "Which copy?" });
-    useWorkspaceStore.setState({
-      worktrees: [{ id: "wt-q", path: "/wt/q", branch: "main", name: "q" } as any],
-    });
-    manager.applyRegistrySnapshot(
-      [{ pid: 9, sessionId: "sess-q", cwd: "/wt/q", kind: "interactive", status: "idle" }],
-      Date.now(),
-    );
-    expect(s.agentState).toBe("idle");
-    expect(useSessionStatusStore.getState().questions["wt-q"]).toBeUndefined();
   });
 
   it("restores clobbered waitingForInput when registry says waiting", () => {

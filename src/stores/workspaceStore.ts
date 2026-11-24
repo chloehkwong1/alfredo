@@ -4,7 +4,6 @@ import { useLayoutStore } from "./layoutStore";
 import { usePrStore } from "./prStore";
 import { rekeyRecord, rekeySet, type WorktreeRekey } from "./rekeyWorktreeId";
 import { migrateSessionFiles } from "../api";
-import { nextNeedsYouSince, type NeedsYouSince } from "../services/orchestrations";
 import type {
   Annotation,
   DiffViewMode,
@@ -29,9 +28,6 @@ interface WorkspaceState {
   seenWorktrees: Set<string>;
   /** Tracks worktrees the user has manually marked as unread. */
   unreadWorktrees: Set<string>;
-  /** When each worktree that needs you started to (and as what). Recomputed by
-   *  the subscription below the store; in memory only, never persisted. */
-  needsYouSince: Record<string, NeedsYouSince>;
   /** Tracks worktrees the user has pinned to the top of their column. */
   pinnedWorktrees: Set<string>;
   /** Multi-select for bulk actions. Scoped to one column at a time, and
@@ -285,7 +281,6 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
     detectedServers: state.detectedServers,
     seenWorktrees: state.seenWorktrees,
     unreadWorktrees: state.unreadWorktrees,
-    needsYouSince: state.needsYouSince,
     pinnedWorktrees: state.pinnedWorktrees,
     selectedWorktreeIds: state.selectedWorktreeIds,
     selectionAnchorId: state.selectionAnchorId,
@@ -304,7 +299,6 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
       detectedServers: rekeyRecord(next.detectedServers!, oldId, newId),
       seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
       unreadWorktrees: rekeySet(next.unreadWorktrees!, oldId, newId),
-      needsYouSince: rekeyRecord(next.needsYouSince!, oldId, newId),
       pinnedWorktrees: rekeySet(next.pinnedWorktrees!, oldId, newId),
       selectedWorktreeIds: rekeySet(next.selectedWorktreeIds!, oldId, newId),
       // Losing this silently breaks the next shift-range.
@@ -394,7 +388,6 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         prStatusCleared: old.prStatusCleared,
         column: old.column,
         agentStatus: old.agentStatus,
-        question: old.question,
         // Frontend-only, written by statusMirror — listWorktrees never has it.
         // Without this a refresh blanks it and the mirror writes it back, so
         // the worktree changes twice per refresh.
@@ -466,7 +459,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeWorktreeId: null,
   seenWorktrees: new Set<string>(),
   unreadWorktrees: new Set<string>(),
-  needsYouSince: {},
   pinnedWorktrees: new Set<string>(),
   dismissedStackAdoptions: new Set(),
   worktreeOrder: {},
@@ -1099,7 +1091,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeWorktreeId: null,
       seenWorktrees: new Set<string>(),
       unreadWorktrees: new Set<string>(),
-      needsYouSince: {},
       pinnedWorktrees: new Set<string>(),
       selectedWorktreeIds: new Set<string>(),
       selectionAnchorId: null,
@@ -1138,24 +1129,3 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     sameDetectedServers(state.detectedServers, next) ? state : { detectedServers: next },
   ),
 }));
-
-// `needsYouSince` is derived from worktrees + seen + unread, which many actions
-// write, so recompute it in one place. Setting it only when the reference
-// changed keeps this from looping.
-useWorkspaceStore.subscribe((state, prev) => {
-  if (
-    state.worktrees === prev.worktrees &&
-    state.seenWorktrees === prev.seenWorktrees &&
-    state.unreadWorktrees === prev.unreadWorktrees
-  ) {
-    return;
-  }
-  const next = nextNeedsYouSince(
-    state.needsYouSince,
-    state.worktrees,
-    state.seenWorktrees,
-    state.unreadWorktrees,
-    Date.now(),
-  );
-  if (next !== state.needsYouSince) useWorkspaceStore.setState({ needsYouSince: next });
-});

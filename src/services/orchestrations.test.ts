@@ -3,9 +3,6 @@ import {
   orchestrationsFromRules,
   orchestrationsFromNotes,
   mergeOrchestrations,
-  yourTurnRows,
-  nextNeedsYouSince,
-  formatWaitingAge,
   countRuleMatches,
   cleanOrchestrationRules,
   worktreeForPath,
@@ -281,30 +278,23 @@ describe("mergeOrchestrations", () => {
     expect(mergeOrchestrations(fromNotes, fromRules)).toEqual([...fromNotes, ...fromRules]);
   });
 
-  it("names the row from the note when a rule also matches the worktree", () => {
+  it("puts the worktree in the note's orchestration when a rule also matches it", () => {
     const worktrees = [
       wt({
         id: "a",
         branch: "docs/scopes",
-        agentStatus: "waitingForInput",
         note: { label: "PR 1 · Scopes", orchestration: "Documents refactor" },
       }),
     ];
-    const rows = yourTurnRows(
+    const claimed = claimWorktrees(
       mergeOrchestrations(
         orchestrationsFromNotes("/r", worktrees),
         orchestrationsFromRules("/r", [{ name: "Docs", branchPrefix: "docs/" }], worktrees),
       ),
-      worktrees,
-      none,
-      none,
-      {},
     );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      orchestrationName: "Documents refactor",
-      itemTitle: "PR 1 · Scopes",
-    });
+    expect(claimed).toEqual([
+      { repoPath: "/r", name: "Documents refactor", items: [{ worktreeId: "a", title: "PR 1 · Scopes" }] },
+    ]);
   });
 
   it("adds a same-named rule's extra worktree and makes no second orchestration", () => {
@@ -340,14 +330,12 @@ describe("mergeOrchestrations", () => {
           id: "a",
           branch: "docs/a",
           prStatus: prStatus.a,
-          agentStatus: "waitingForInput",
           note: { label: "PR 1", orchestration: "Documents" },
         }),
         wt({
           id: "b",
           branch: "docs/b",
           prStatus: prStatus.b,
-          agentStatus: "waitingForInput",
           note: { label: "PR 7 · Invoices", orchestration: "Billing" },
         }),
       ];
@@ -355,205 +343,16 @@ describe("mergeOrchestrations", () => {
         orchestrationsFromNotes("/r", worktrees),
         orchestrationsFromRules("/r", [{ name: "Documents", branchPrefix: "docs/" }], worktrees),
       );
-      const rows = yourTurnRows(merged, worktrees, none, none, {});
-      expect(rows.find((r) => r.worktreeId === "b")).toMatchObject({
-        orchestrationName: "Billing",
-        itemTitle: "PR 7 · Invoices",
+      const ofB = claimWorktrees(merged).find((o) => o.items.some((item) => item.worktreeId === "b"));
+      expect(ofB).toMatchObject({
+        name: "Billing",
+        items: [{ worktreeId: "b", title: "PR 7 · Invoices" }],
       });
       expect(merged.find((o) => o.name === "Documents")?.items).toEqual([
         { worktreeId: "a", title: "PR 1" },
       ]);
     },
   );
-});
-
-describe("yourTurnRows", () => {
-  it("lists the head of a link orchestration under its own name, after notes and rules", () => {
-    const head = wt({ id: "r::orch", path: "/wt/orch", branch: "jack/billing-orchestrator", repoPath: "r", agentStatus: "waitingForInput" });
-    const linked = wt({ id: "r::api", path: "/wt/api", branch: "jack/billing-api", repoPath: "r", agentStatus: "notRunning", workedFrom: { worktreeId: "r::orch", running: true } });
-    const fromLinks = orchestrationsFromLinks("r", [head, linked], { "/wt/orch": "Billing" });
-
-    const rows = yourTurnRows(fromLinks, [head, linked], new Set(["r::orch"]), new Set(), {});
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ worktreeId: "r::orch", kind: "answer", orchestrationName: "Billing", itemTitle: "orchestrator" });
-
-    const rule = { repoPath: "r", name: "Rule first", items: [{ worktreeId: "r::orch", title: "x" }] };
-    const both = yourTurnRows([rule, ...fromLinks], [head, linked], new Set(["r::orch"]), new Set(), {});
-    expect(both).toHaveLength(1);
-    expect(both[0].orchestrationName).toBe("Rule first");
-  });
-  it("makes a row only for worktrees that need you", () => {
-    const rows = yourTurnRows(
-      [orch("O", ["a", "b"])],
-      [
-        wt({ id: "a", agentStatus: "waitingForInput" }),
-        wt({ id: "b", agentStatus: "busy" }),
-      ],
-      none,
-      none,
-      { a: { kind: "answer", at: 5 } },
-    );
-    expect(rows.map((r) => r.worktreeId)).toEqual(["a"]);
-    expect(rows[0]).toMatchObject({
-      kind: "answer",
-      orchestrationName: "O",
-      itemTitle: "t-a",
-      since: 5,
-    });
-  });
-
-  it("does not make a row for an archived or seen worktree", () => {
-    const rows = yourTurnRows(
-      [orch("O", ["a", "b"])],
-      [
-        wt({ id: "a", agentStatus: "waitingForInput", archived: true }),
-        wt({ id: "b", agentStatus: "idle" }),
-      ],
-      new Set(["b"]),
-      none,
-      {},
-    );
-    expect(rows).toEqual([]);
-  });
-
-  it("answer text is the question or a fallback; fullText is untruncated", () => {
-    const long = "x".repeat(300);
-    const rows = yourTurnRows(
-      [orch("O", ["a", "b"])],
-      [
-        wt({ id: "a", agentStatus: "waitingForInput", question: { text: long } }),
-        wt({ id: "b", agentStatus: "waitingForInput" }),
-      ],
-      none,
-      none,
-      { a: { kind: "answer", at: 1 }, b: { kind: "answer", at: 2 } },
-    );
-    expect(rows[0].fullText).toBe(long);
-    expect(rows[0].text).toBe(long);
-    expect(rows[1].text).toBe("Waiting for input");
-    expect(rows[1].fullText).toBe("Waiting for input");
-  });
-
-  it("check text is Finished for a done worktree with kind check", () => {
-    const [row] = yourTurnRows(
-      [orch("O", ["a"])],
-      [wt({ id: "a", agentStatus: "idle" })],
-      none,
-      none,
-      {},
-    );
-    expect(row.kind).toBe("check");
-    expect(row.text).toBe("Finished");
-  });
-
-  it("check text is Ready to start for a just-created worktree", () => {
-    const [row] = yourTurnRows(
-      [orch("O", ["a"])],
-      [wt({ id: "a", agentStatus: "notRunning", justCreated: true })],
-      none,
-      none,
-      {},
-    );
-    expect(row.kind).toBe("check");
-    expect(row.text).toBe("Ready to start");
-  });
-
-  it("gives one row for a worktree in two orchestrations, under the first", () => {
-    const rows = yourTurnRows(
-      [orch("First", ["a"]), orch("Second", ["a"])],
-      [wt({ id: "a", agentStatus: "waitingForInput" })],
-      none,
-      none,
-      {},
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0].orchestrationName).toBe("First");
-  });
-
-  it("sorts oldest first, with no-since rows last", () => {
-    const rows = yourTurnRows(
-      [orch("O", ["a", "b", "c"])],
-      [
-        wt({ id: "a", agentStatus: "waitingForInput" }),
-        wt({ id: "b", agentStatus: "waitingForInput" }),
-        wt({ id: "c", agentStatus: "waitingForInput" }),
-      ],
-      none,
-      none,
-      { a: { kind: "answer", at: 30 }, c: { kind: "answer", at: 10 } },
-    );
-    expect(rows.map((r) => r.worktreeId)).toEqual(["c", "a", "b"]);
-  });
-});
-
-describe("nextNeedsYouSince", () => {
-  it("adds an entry when a worktree starts to need you", () => {
-    const next = nextNeedsYouSince(
-      {},
-      [wt({ id: "a", agentStatus: "waitingForInput" })],
-      none,
-      none,
-      100,
-    );
-    expect(next).toEqual({ a: { kind: "answer", at: 100 } });
-  });
-
-  it("removes the entry when it stops needing you", () => {
-    const next = nextNeedsYouSince(
-      { a: { kind: "answer", at: 100 } },
-      [wt({ id: "a", agentStatus: "busy" })],
-      none,
-      none,
-      200,
-    );
-    expect(next).toEqual({});
-  });
-
-  it("resets the time when kind goes from check to answer", () => {
-    const next = nextNeedsYouSince(
-      { a: { kind: "check", at: 100 } },
-      [wt({ id: "a", agentStatus: "waitingForInput" })],
-      none,
-      none,
-      200,
-    );
-    expect(next).toEqual({ a: { kind: "answer", at: 200 } });
-  });
-
-  it("keeps the age on answer to check and resets it on the next check to answer", () => {
-    const waiting = wt({ id: "a", agentStatus: "waitingForInput" });
-    const done = wt({ id: "a", agentStatus: "idle" });
-    const step2 = nextNeedsYouSince({ a: { kind: "answer", at: 100 } }, [done], none, none, 200);
-    expect(step2).toEqual({ a: { kind: "check", at: 100 } });
-    const step3 = nextNeedsYouSince(step2, [waiting], none, none, 300);
-    expect(step3).toEqual({ a: { kind: "answer", at: 300 } });
-  });
-
-  it("returns prev itself when nothing changed", () => {
-    const prev = { a: { kind: "answer" as const, at: 100 } };
-    const next = nextNeedsYouSince(
-      prev,
-      [wt({ id: "a", agentStatus: "waitingForInput" })],
-      none,
-      none,
-      999,
-    );
-    expect(next).toBe(prev);
-  });
-});
-
-describe("formatWaitingAge", () => {
-  const T = 1_000_000;
-  it.each([
-    [0, "now"],
-    [59_000, "now"],
-    [12 * 60_000, "12 min"],
-    [119 * 60_000, "119 min"],
-    [2 * 3_600_000, "2 h"],
-    [3 * 86_400_000, "3 d"],
-  ])("%i ms waited -> %s", (ms, expected) => {
-    expect(formatWaitingAge(T, T + ms)).toBe(expected);
-  });
 });
 
 describe("countRuleMatches", () => {
@@ -752,9 +551,9 @@ describe("orchestrationsForRepo", () => {
     ]);
   });
   it("leaves a worktree that a rule and a link both list in the rule's orchestration", () => {
-    const rows = yourTurnRows(orchestrationsForRepo("r", [head, both], rules, {}), [head, both], new Set(["r::api"]), new Set(), {});
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ worktreeId: "r::api", orchestrationName: "Billing rule", itemTitle: "api" });
+    const claimed = claimWorktrees(orchestrationsForRepo("r", [head, both], rules, {}));
+    const ofApi = claimed.filter((o) => o.items.some((item) => item.worktreeId === "r::api"));
+    expect(ofApi.map((o) => o.name)).toEqual(["Billing rule"]);
   });
   it("has no fromLinks on a note or rule orchestration", () => {
     const noted = wt({ id: "r::n", path: "/wt/n", branch: "n", repoPath: "r", note: { orchestration: "Noted" } });

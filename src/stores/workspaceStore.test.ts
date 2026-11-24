@@ -51,7 +51,6 @@ describe("setWorktrees / mergeWorktreeState", () => {
           additions: 917,
           deletions: 90,
           runningAgents: 3,
-          question: { text: "Which copy?", header: "Error copy" },
         }),
       ],
     });
@@ -83,7 +82,6 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.additions).toBe(917);
     expect(wt.deletions).toBe(90);
     expect(wt.runningAgents).toBe(3);
-    expect(wt.question).toEqual({ text: "Which copy?", header: "Error copy" });
   });
 
   it("keeps workedFrom, which the backend list never has", () => {
@@ -1131,54 +1129,6 @@ describe("orchestrationRules", () => {
     store.getState().clearStore();
 
     expect(store.getState().orchestrationRules).toEqual({});
-  });
-});
-
-describe("needsYouSince", () => {
-  const waiting = (id: string) =>
-    makeWorktree({ id, agentStatus: "waitingForInput", channelAlive: true });
-
-  it("gets an entry when a worktree turns waitingForInput and loses it once seen/answered", () => {
-    const s = () => useWorkspaceStore.getState();
-    s().setWorktrees([makeWorktree({ id: "wt-1", agentStatus: "busy" })]);
-    expect(s().needsYouSince).toEqual({});
-
-    s().updateWorktree("wt-1", { agentStatus: "waitingForInput" });
-    expect(s().needsYouSince["wt-1"]).toMatchObject({ kind: "answer" });
-
-    // Answered: the agent is busy again.
-    s().updateWorktree("wt-1", { agentStatus: "busy" });
-    expect(s().needsYouSince).toEqual({});
-  });
-
-  it("drops a finished worktree's entry when it is marked seen", () => {
-    const s = () => useWorkspaceStore.getState();
-    s().setWorktrees([makeWorktree({ id: "wt-1", agentStatus: "idle", channelAlive: true })]);
-    expect(s().needsYouSince["wt-1"]).toMatchObject({ kind: "check" });
-
-    s().markWorktreeSeen("wt-1");
-    expect(s().needsYouSince).toEqual({});
-  });
-
-  it("follows a worktree rename", () => {
-    const s = () => useWorkspaceStore.getState();
-    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
-    s().setWorktrees([waiting("wt-old")]);
-    expect(s().needsYouSince["wt-old"].at).toBe(1000);
-
-    now.mockReturnValue(9000);
-    s().setWorktrees([waiting("wt-new")]);
-    now.mockRestore();
-
-    expect(s().needsYouSince["wt-old"]).toBeUndefined();
-    expect(s().needsYouSince["wt-new"]).toEqual({ kind: "answer", at: 1000 });
-  });
-
-  it("clearStore resets it", () => {
-    const s = () => useWorkspaceStore.getState();
-    s().setWorktrees([waiting("wt-1")]);
-    s().clearStore();
-    expect(s().needsYouSince).toEqual({});
   });
 });
 

@@ -34,15 +34,6 @@ pub enum SessionStatus {
     Exited(i32),
 }
 
-/// The first question of an AskUserQuestion call (or a fixed label for
-/// ExitPlanMode). Held in memory only: never write it to a log or to disk.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct HookQuestion {
-    pub text: String,
-    pub header: Option<String>,
-}
-
 /// Where a hook's tool call ran, read from the hook input. Memory only.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -76,10 +67,6 @@ pub enum PtyEvent {
         state: AgentState,
         notify: NotifyReason,
         phase: HookPhase,
-        /// The question the agent is parked on (AskUserQuestion / ExitPlanMode).
-        /// In memory only: never log it.
-        #[serde(skip_serializing_if = "Option::is_none")]
-        question: Option<HookQuestion>,
         /// Where the hook's tool call ran. In memory only: never log it.
         #[serde(skip_serializing_if = "Option::is_none")]
         activity: Option<HookActivity>,
@@ -155,31 +142,18 @@ mod pty_event_wire_tests {
             state: AgentState::Idle,
             notify: NotifyReason::Finished,
             phase: HookPhase::TurnEnd,
-            question: None,
             activity: None,
         });
-        assert!(hook["data"].get("question").is_none());
         assert!(hook["data"].get("activity").is_none());
         assert_eq!(hook["event"], "hookAgentState");
         assert_eq!(hook["data"]["state"], "idle");
         assert_eq!(hook["data"]["notify"], "finished");
         assert_eq!(hook["data"]["phase"], "turnEnd");
 
-        let asked = json(PtyEvent::HookAgentState {
-            state: AgentState::WaitingForInput,
-            notify: NotifyReason::Input,
-            phase: HookPhase::ToolStart,
-            question: Some(HookQuestion { text: "Which copy?".into(), header: Some("Error copy".into()) }),
-            activity: None,
-        });
-        assert_eq!(asked["data"]["question"]["text"], "Which copy?");
-        assert_eq!(asked["data"]["question"]["header"], "Error copy");
-
         let ran = json(PtyEvent::HookAgentState {
             state: AgentState::Busy,
             notify: NotifyReason::None,
             phase: HookPhase::ToolStart,
-            question: None,
             activity: Some(HookActivity { cwd: Some("/wt/b".into()), write_path: None, agent_id: Some("a1".into()) }),
         });
         assert_eq!(ran["data"]["activity"], serde_json::json!({ "cwd": "/wt/b", "agentId": "a1" }));
