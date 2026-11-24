@@ -1,0 +1,33 @@
+src/components/sidebar/AgentItemOverlay.tsx
+  s_aeb2bb1fcfc01a::t_a9e626530a0632 46-48
+src/services/orchestrations.ts
+  s_aeb2bb1fcfc01a::t_d7dd8637ce1f56 651
+  s_aeb2bb1fcfc01a::t_6047941173a560 633-634,637
+  s_aeb2bb1fcfc01a::t_9d531e8f9d39e2 431-436,444-447
+src/components/sidebar/OrchestrationChip.tsx
+  s_aeb2bb1fcfc01a::t_3d215a9da0326e 118-119,126,128,145,147
+  s_aeb2bb1fcfc01a::t_946544d4dde0f4 144,156
+src/components/sidebar/AgentItem.test.ts
+  s_aeb2bb1fcfc01a::t_8e3bc9d207fa78 1,18
+  s_aeb2bb1fcfc01a::t_7fb0401ecf55ed 796-900
+src/services/orchestrations.test.ts
+  s_aeb2bb1fcfc01a::t_5b0ab6ae29e7a4 1017-1023
+  s_aeb2bb1fcfc01a::t_705fc564c272fe 1036
+  s_aeb2bb1fcfc01a::t_bcaa3f6273258b 840,845,871,880,913,917,920-927,929-930,932,934,945
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a8c325460855180fc92f927c865962e3ced9c64",
+  "prompts": {},
+  "sessions": {
+    "s_aeb2bb1fcfc01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94837c97-c19a-43d4-80d1-5a646902f592",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
