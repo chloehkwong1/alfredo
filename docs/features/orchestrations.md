@@ -61,9 +61,9 @@ session is running in Alfredo; a hibernated tab does not count.
 The session's worktree and the worktrees of the same repo that it
 works in form an orchestration. It is named after the session's
 worktree: the name you gave the row, or its note's `label`, or its
-branch. A subagent cannot ask you a question, so a question shows on
-the session's row. Rules and notes come first: a worktree they already place keeps that
-place.
+branch. A subagent cannot ask you a question, so when the work needs
+you, the session's own row says so. Rules and notes come first: a
+worktree they already place keeps that place.
 
 A link stays until you close the session's tab or quit Alfredo. The
 other worktree stays in the orchestration after the work in it stops,
