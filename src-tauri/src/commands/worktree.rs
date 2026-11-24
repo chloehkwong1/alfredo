@@ -406,11 +406,11 @@ const PLAN_NAME_MAX_LEN: usize = 40;
 /// alfredo/worktrees/<worktree folder name>.json`: `{"path", "label"?,
 /// "orchestration"?, "role"?, "plan"?}`. `role: "orchestrator"` with an
 /// `orchestration` makes the worktree the orchestrator, and only then is
-/// `plan` read; a malformed plan is left empty, never fails the note. Unlike the autostart marker it is never consumed, so
-/// every listing reads it again and the tool can rename a worktree by
-/// rewriting the file. `None` for a missing, oversized or malformed note, one
-/// whose `path` is another worktree (a reused folder name), or one with no
-/// usable text.
+/// `plan` read; a malformed plan is left empty, never fails the note. Unlike
+/// the autostart marker it is never consumed, so every listing reads it again
+/// and the tool can rename a worktree by rewriting the file. `None` for a
+/// missing, oversized or malformed note, one whose `path` is another worktree
+/// (a reused folder name), or one with no usable text.
 fn read_worktree_note_in(common_dir: &Path, worktree_path: &Path) -> Option<WorktreeNote> {
     // Appended, not `with_extension`: `v1.2-fix` must map to `v1.2-fix.json`.
     let mut file_name = worktree_path.file_name()?.to_os_string();

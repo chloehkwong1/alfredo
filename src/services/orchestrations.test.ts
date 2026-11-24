@@ -988,6 +988,17 @@ describe("markLine", () => {
   it("leaves out the parts that are empty", () => {
     expect(markLine(withPlan, { id: "a", path: "/r/rule" })).toBe("PR 1");
   });
+  it("counts an item that waits through alsoAfter", () => {
+    const viaAlso: Orchestration = {
+      ...withPlan,
+      plan: [
+        { key: "4", name: "PR 4", state: "active", folder: "rule" },
+        { key: "5", name: "PR 5", after: "1", alsoAfter: ["4"], state: "todo" },
+        { key: "8", name: "PR 8", alsoAfter: ["4", "4"], state: "active" },
+      ],
+    };
+    expect(markLine(viaAlso, { id: "a", path: "/r/rule" })).toBe("PR 4 · PR 5 waits for it");
+  });
   it("counts merged items for the orchestrator", () => {
     expect(markLine(withPlan, { id: "o", path: "/r/orch" })).toBe("Orchestrator · 1 of 5 merged");
   });

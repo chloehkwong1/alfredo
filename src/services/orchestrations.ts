@@ -634,7 +634,8 @@ export function markLine(orchestration: Orchestration, worktree: Pick<Worktree, 
   const named = (key: string | undefined) => (key === item.key ? undefined : plan.find((p) => p.key === key));
   const parent = named(item.after);
   const also = (item.alsoAfter ?? []).map(named).filter((p): p is PlanItem => p !== undefined);
-  const waiting = plan.filter((p) => p.key !== item.key && p.after === item.key && p.state === "todo");
+  const waitsForItem = (p: PlanItem) => p.after === item.key || (p.alsoAfter ?? []).includes(item.key);
+  const waiting = plan.filter((p) => p.key !== item.key && p.state === "todo" && waitsForItem(p));
   return [
     nameOf(item),
     parent ? `after ${nameOf(parent)}` : "",
