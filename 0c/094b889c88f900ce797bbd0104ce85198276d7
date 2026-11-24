@@ -1,0 +1,23 @@
+docs/features/orchestrations.md
+  s_8aff2079d24fda::t_a4ac87b4136c76 121
+  s_8aff2079d24fda::t_55c53619d2fd4e 64-65
+  s_8aff2079d24fda::t_868022cc313f23 2-4
+  s_8aff2079d24fda::t_7d11bfe137cd53 96
+  s_8aff2079d24fda::t_610d67363ab8cd 20,25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c094b889c88f900ce797bbd0104ce85198276d7",
+  "prompts": {},
+  "sessions": {
+    "s_8aff2079d24fda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0d50f41-b914-418b-a4ae-4310d3896a73",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
