@@ -115,17 +115,17 @@ function OrchestrationTooltipContent({ worktreeId, hue }: { worktreeId: string; 
   if (!orchestration || !worktree) return null;
   const hint = noPlanHint(orchestration);
   return (
-    <div className="max-w-[200px] font-normal">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+    <div className="max-w-[320px] font-normal">
+      <div className="max-w-[200px] flex items-center gap-1.5 text-xs font-semibold text-text-primary">
         <i className="w-1.5 h-1.5 rounded-[2px] flex-shrink-0" style={{ background: markColor(hue) }} />
         {orchestration.name}
       </div>
       {orchestration.plan && (
         <PlanMap orchestration={orchestration} plan={orchestration.plan} here={planItemFor(orchestration, worktree)} />
       )}
-      <div className="mt-2 text-[11px] text-text-secondary">{markLine(orchestration, worktree)}</div>
+      <div className="max-w-[200px] mt-2 text-[11px] text-text-secondary">{markLine(orchestration, worktree)}</div>
       {hint && (
-        <div className="mt-2 pt-2 border-t border-border-default text-[11px] leading-[1.45] text-text-tertiary">
+        <div className="max-w-[200px] mt-2 pt-2 border-t border-border-default text-[11px] leading-[1.45] text-text-tertiary">
           {hint}
         </div>
       )}
@@ -141,8 +141,10 @@ function OrchestrationChip({ worktreeId, mark }: { worktreeId: string; mark: Orc
     <Tooltip side="right" content={<OrchestrationTooltipContent worktreeId={worktreeId} hue={mark.hue} />}>
       {mark.orchestrator ? (
         <span
-          className="flex-shrink-0 cursor-default text-[10px] font-semibold leading-[15px] px-1 rounded-[3px]"
+          data-orchestration-chip
+          className="flex-shrink-0 cursor-default transition-colors text-[10px] font-semibold leading-[15px] px-1 rounded-[3px] hover:bg-[color-mix(in_srgb,var(--orchestration-mark)_26%,transparent)]"
           style={{
+            ["--orchestration-mark" as string]: markColor(mark.hue),
             color: markColor(mark.hue),
             border: `1px solid color-mix(in srgb, ${markColor(mark.hue)} 45%, transparent)`,
           }}
@@ -151,6 +153,7 @@ function OrchestrationChip({ worktreeId, mark }: { worktreeId: string; mark: Orc
         </span>
       ) : (
         <span
+          data-orchestration-chip
           className={`flex-shrink-0 inline-flex items-center justify-center rounded-[3px] cursor-default transition-colors w-[18px] h-4 ${chipTintClassName(mark.hue)}`}
           style={chipStyle(mark.hue)}
         >

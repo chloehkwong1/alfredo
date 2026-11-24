@@ -428,7 +428,12 @@ export function shownOrchestrations(orchestrations: Orchestration[]): Orchestrat
   return claimWorktrees(orchestrations).filter((o) => o.items.length >= 2 || (o.plan !== undefined && o.orchestratorId !== undefined));
 }
 
-/** The mark of every worktree that is not archived and is in a shown orchestration. */
+/** The mark of every worktree that is not archived and is in a shown
+ *  orchestration. Hues go to the orchestrations with a visible row, sorted by
+ *  `repoPath`, then `name`, so a PR that opens or merges and reorders the list
+ *  does not swap two colours. With fewer than two, the hue is null (accent
+ *  tint); otherwise each takes the next slot the stacks leave free, wrapping
+ *  over all slots when none is free. */
 export function orchestrationMarks(
   shown: Orchestration[],
   worktrees: Worktree[],
@@ -436,7 +441,10 @@ export function orchestrationMarks(
 ): Map<string, OrchestrationMark> {
   const live = new Set(worktrees.filter((wt) => !wt.archived).map((wt) => wt.id));
   const visible = new Set(worktrees.filter(isVisibleWorktree).map((wt) => wt.id));
-  const withRows = shown.filter((o) => o.items.some((item) => visible.has(item.worktreeId)));
+  const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  const withRows = shown
+    .filter((o) => o.items.some((item) => visible.has(item.worktreeId)))
+    .sort((a, b) => byText(a.repoPath, b.repoPath) || byText(a.name, b.name));
   const usedByStacks = new Set(stackHues.values());
   const free = Array.from({ length: STACK_HUE_COUNT }, (_, slot) => slot).filter(
     (slot) => !usedByStacks.has(slot),
@@ -622,10 +630,11 @@ export function markLine(orchestration: Orchestration, worktree: Pick<Worktree, 
   const item = planItemFor(orchestration, worktree);
   if (!plan || !item) return `${items.length} worktrees`;
   const nameOf = (p: PlanItem) => p.name ?? p.key;
-  const named = (key: string | undefined) => plan.find((p) => p.key === key);
+  // An item's own key is never its parent, and an item never waits for itself.
+  const named = (key: string | undefined) => (key === item.key ? undefined : plan.find((p) => p.key === key));
   const parent = named(item.after);
   const also = (item.alsoAfter ?? []).map(named).filter((p): p is PlanItem => p !== undefined);
-  const waiting = plan.filter((p) => p.after === item.key && p.state === "todo");
+  const waiting = plan.filter((p) => p.key !== item.key && p.after === item.key && p.state === "todo");
   return [
     nameOf(item),
     parent ? `after ${nameOf(parent)}` : "",
@@ -639,5 +648,5 @@ export function markLine(orchestration: Orchestration, worktree: Pick<Worktree, 
 /** The last line of the tooltip when the orchestration has no map, or null. */
 export function noPlanHint(orchestration: Orchestration): string | null {
   if (orchestration.plan?.length || orchestration.fromLinks) return null;
-  return "No map: this orchestration has no plan. See Help › Worktree notes.";
+  return "No map: this orchestration has no plan. See Help › Orchestrations.";
 }

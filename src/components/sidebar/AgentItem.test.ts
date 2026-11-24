@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React, { Profiler } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -15,7 +15,7 @@ import { nativeStackChipLabel } from "./StackGlyph";
 import { TooltipProvider } from "../ui/Tooltip";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
-import type { GlobalAppConfig, NativeStackInfo, PrStatus, Worktree } from "../../types";
+import type { GlobalAppConfig, NativeStackInfo, PlanItem, PrStatus, Worktree, WorktreeNote } from "../../types";
 import type { StackChain } from "../../lib/stackChain";
 
 describe("computeEffectiveStatus", () => {
@@ -791,5 +791,110 @@ describe("AgentItem render fan-out", () => {
     expect(changed).toEqual([worktrees[5].id]);
     root.unmount();
     container.remove();
+  });
+});
+
+// ── The orchestration chip, rendered ──────────────────────────────
+// The chip is found by `data-orchestration-chip`: the drag overlay makes the
+// chip inert through that attribute, so a lifted card opens no tooltip.
+describe("OrchestrationChip in a row", () => {
+  const plan: PlanItem[] = [
+    { key: "1", name: "PR 1", state: "merged", folder: "rule" },
+    { key: "5", name: "PR 5", after: "1", state: "active", folder: "set-up" },
+    { key: "6", name: "PR 6", after: "5", state: "todo" },
+  ];
+  function noted(folder: string, note: WorktreeNote): Worktree {
+    return {
+      id: `/repo::${folder}`,
+      name: folder,
+      path: `/repo/.worktrees/${folder}`,
+      branch: `feature/${folder}`,
+      prStatus: null,
+      agentStatus: "idle",
+      column: "inProgress",
+      isBranchMode: false,
+      additions: 0,
+      deletions: 0,
+      repoPath: "/repo",
+      note,
+    } as Worktree;
+  }
+
+  // Radix measures the tooltip with ResizeObserver, which jsdom lacks.
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function renderRows(worktrees: Worktree[]) {
+    useWorkspaceStore.setState({ worktrees, orchestrationRules: {} });
+    useAppConfigStore.setState({ config: null, initialFetchStarted: true });
+    const noop = () => {};
+    const rows = worktrees.map((wt) =>
+      React.createElement(AgentItem, {
+        key: wt.id, worktree: wt, isSelected: false, isPinned: false, isDimmed: false, onClick: noop,
+        isMultiSelected: false, onDelete: noop, onArchive: noop, repoPath: "/repo",
+        repoColors: {}, repoDisplayNames: {}, repoShortLabels: {}, label: undefined, onRename: noop,
+      }),
+    );
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(React.createElement(TooltipProvider, null, React.createElement("div", null, ...rows))); });
+    return {
+      rowOf: (wt: Worktree) => container.firstElementChild!.children[worktrees.indexOf(wt)],
+      unmount: async () => {
+        await act(async () => { root.unmount(); });
+        container.remove();
+      },
+    };
+  }
+
+  // Radix opens on a mouse pointermove, after the provider's 300 ms delay.
+  async function openTooltip(chip: Element): Promise<Element | null> {
+    await act(async () => {
+      const move = new MouseEvent("pointermove", { bubbles: true });
+      Object.defineProperty(move, "pointerType", { value: "mouse" });
+      chip.dispatchEvent(move);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    return document.querySelector("[data-radix-popper-content-wrapper]");
+  }
+
+  const orchestrator = noted("agency-staff", { orchestration: "Agency staff", isOrchestrator: true, plan });
+  const member = noted("set-up", { orchestration: "Agency staff" });
+
+  it("tags the orchestrator's row `orchestrator` and gives a member the mark", async () => {
+    const { rowOf, unmount } = await renderRows([orchestrator, member]);
+    expect(rowOf(orchestrator).querySelector("[data-orchestration-chip]")?.textContent).toBe("orchestrator");
+    expect(rowOf(member).querySelector("[data-orchestration-chip]")).not.toBeNull();
+    expect(rowOf(member).textContent).not.toContain("orchestrator");
+    await unmount();
+  });
+
+  it("shows the name, one square per plan item and the grey line for a member with a plan item", async () => {
+    const { rowOf, unmount } = await renderRows([orchestrator, member]);
+    const tip = await openTooltip(rowOf(member).querySelector("[data-orchestration-chip]")!);
+    expect(tip).not.toBeNull();
+    expect(tip!.textContent).toContain("Agency staff");
+    const map = tip!.querySelector('svg[aria-label="Plan of the orchestration"]');
+    expect(map?.querySelectorAll("rect")).toHaveLength(plan.length);
+    expect(tip!.textContent).toContain("PR 5 · after PR 1 · PR 6 waits for it");
+    expect(tip!.textContent).not.toContain("No map");
+    await unmount();
+  });
+
+  it("shows the no-map line and no map for a note orchestration with no plan", async () => {
+    const a = noted("docs-a", { orchestration: "Docs" });
+    const b = noted("docs-b", { orchestration: "Docs" });
+    const { rowOf, unmount } = await renderRows([a, b]);
+    const tip = await openTooltip(rowOf(a).querySelector("[data-orchestration-chip]")!);
+    expect(tip).not.toBeNull();
+    expect(tip!.textContent).toContain("Docs");
+    expect(tip!.textContent).toContain("No map: this orchestration has no plan. See Help › Orchestrations.");
+    expect(tip!.querySelector('svg[aria-label="Plan of the orchestration"]')).toBeNull();
+    await unmount();
   });
 });

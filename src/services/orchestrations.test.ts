@@ -837,12 +837,12 @@ describe("orchestrationMarks", () => {
     const marks = orchestrationMarks([orch("N", ["a", "b"])], list, new Map());
     expect([...marks.keys()]).toEqual(["a"]);
   });
-  it("uses the accent tint for one orchestration and a hue each for two", () => {
+  it("uses the accent tint for one orchestration and a hue each for two, in name order", () => {
     const list = worktrees("a", "b", "c", "d");
     const one = orchestrationMarks([orch("N", ["a", "b"])], list, new Map());
     expect(one.get("a")?.hue).toBeNull();
     const two = orchestrationMarks([orch("N", ["a", "b"]), orch("M", ["c", "d"])], list, new Map());
-    expect([two.get("a")?.hue, two.get("c")?.hue]).toEqual([0, 1]);
+    expect([two.get("a")?.hue, two.get("c")?.hue]).toEqual([1, 0]);
   });
   it("does not count an orchestration with only archived rows toward the two", () => {
     const list = [wt({ id: "a" }), wt({ id: "b" }), wt({ id: "c", archived: true }), wt({ id: "d", archived: true })];
@@ -868,7 +868,7 @@ describe("orchestrationMarks", () => {
       list,
       new Map([["s1", 0], ["s2", 1]]),
     );
-    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([2, 3]);
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([3, 2]);
   });
   it("wraps when no slot is free", () => {
     const list = worktrees("a", "b", "c", "d");
@@ -877,7 +877,7 @@ describe("orchestrationMarks", () => {
       list,
       new Map([0, 1, 2, 3, 4, 5].map((slot) => [`s${slot}`, slot])),
     );
-    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([0, 1]);
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([1, 0]);
   });
 });
 
@@ -910,19 +910,28 @@ describe("orchestrationMarksFor", () => {
     const rules = {};
     const before = orchestrationMarksFor(list(), rules);
     const after = orchestrationMarksFor([noted("a", "N"), noted("b", "N")], rules);
-    expect(before.get("a")?.hue).toBe(0);
+    expect(before.get("a")?.hue).toBe(1);
     expect(after.get("a")).not.toBe(before.get("a"));
     expect(after.get("a")?.hue).toBeNull();
   });
-  it("lists repo B's orchestrations first when B's worktrees come first", () => {
+  it("gives the first free slot to the repo whose path sorts first, whatever the array order", () => {
     const inRepo = (repoPath: string, id: string, orchestration: string) =>
       wt({ id, repoPath, path: `${repoPath}/${id}`, branch: id, note: { orchestration } });
+    const repoA = [inRepo("/a", "a1", "Z"), inRepo("/a", "a2", "Z")];
+    const repoB = [inRepo("/b", "b1", "A"), inRepo("/b", "b2", "A")];
+    for (const worktrees of [[...repoB, ...repoA], [...repoA, ...repoB]]) {
+      const marks = orchestrationMarksFor(worktrees, {});
+      expect([marks.get("a1")?.hue, marks.get("b1")?.hue]).toEqual([0, 1]);
+    }
+  });
+  it("keeps each orchestration's slot when a PR number puts another first in list order", () => {
     const worktrees = [
-      inRepo("/b", "b1", "B"), inRepo("/b", "b2", "B"),
-      inRepo("/a", "a1", "A"), inRepo("/a", "a2", "A"),
+      noted("a1", "A", { prStatus: pr(20) }), noted("a2", "A"),
+      noted("b1", "B", { prStatus: pr(10) }), noted("b2", "B"),
     ];
+    expect(orchestrationsFromNotes("/r", worktrees).map((o) => o.name)).toEqual(["B", "A"]);
     const marks = orchestrationMarksFor(worktrees, {});
-    expect([marks.get("b1")?.hue, marks.get("a1")?.hue]).toEqual([0, 1]);
+    expect([marks.get("a1")?.hue, marks.get("b1")?.hue]).toEqual([0, 1]);
   });
   it("takes the slots after the ones that stacks on screen use", () => {
     const worktrees = [
@@ -933,7 +942,7 @@ describe("orchestrationMarksFor", () => {
       noted("a", "N"), noted("b", "N"), noted("c", "M"), noted("d", "M"),
     ];
     const marks = orchestrationMarksFor(worktrees, {});
-    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([2, 3]);
+    expect([marks.get("a")?.hue, marks.get("c")?.hue]).toEqual([3, 2]);
   });
   it("gives one mark to a worktree that a note places and a session works in", () => {
     const worktrees = [
@@ -1005,6 +1014,13 @@ describe("markLine", () => {
     ];
     expect(markLine({ ...withPlan, plan: p }, { id: "a", path: "/r/a" })).toBe("A · B waits for it");
   });
+  it("never names an item as its own parent or as waiting for itself", () => {
+    const p: PlanItem[] = [
+      { key: "1", name: "PR 1", after: "1", alsoAfter: ["1", "2"], state: "todo", folder: "a" },
+      { key: "2", name: "PR 2", state: "merged" },
+    ];
+    expect(markLine({ ...withPlan, plan: p }, { id: "a", path: "/r/a" })).toBe("PR 1 · also after PR 2");
+  });
 });
 
 describe("noPlanHint", () => {
@@ -1017,7 +1033,7 @@ describe("noPlanHint", () => {
     ],
   };
   it("tells a note or rule orchestration with no plan where to look", () => {
-    expect(noPlanHint(base)).toBe("No map: this orchestration has no plan. See Help › Worktree notes.");
+    expect(noPlanHint(base)).toBe("No map: this orchestration has no plan. See Help › Orchestrations.");
   });
   it("is null with a plan", () => {
     expect(noPlanHint({ ...base, plan: [{ key: "1", state: "todo" }] })).toBeNull();

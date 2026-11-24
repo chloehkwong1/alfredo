@@ -43,7 +43,9 @@ function AgentItemOverlay({
   const deckLayer = "absolute inset-0 rounded-md bg-bg-elevated ring-1 ring-inset ring-card-ring";
 
   return (
-    <div className="relative pointer-events-none" style={width ? { width } : undefined}>
+    // Only the orchestration chip is inert, so a lifted card opens no tooltip
+    // and the card keeps its grabbing cursor.
+    <div className="relative [&_[data-orchestration-chip]]:pointer-events-none" style={width ? { width } : undefined}>
       {batchCount > 2 && (
         <div aria-hidden className={`${deckLayer} origin-top translate-y-[11px] scale-x-[0.93]`} />
       )}
