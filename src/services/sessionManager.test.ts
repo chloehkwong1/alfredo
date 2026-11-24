@@ -2,6 +2,8 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import {
   shouldAcceptDetectorState,
+  hibernateBlocker,
+  type HibernateCandidate,
   SessionManager,
   computeOrphanSweep,
   registryPollDelay,
@@ -91,6 +93,47 @@ describe("reloadStaleRenderers", () => {
     expect(current.webglAddon).toBe(currentAddon);
 
     await manager.closeAll();
+  });
+});
+
+describe("hibernateBlocker", () => {
+  const IDLE_MS = 30 * 60_000;
+  const NOW = 10 * IDLE_MS;
+  const candidate = (session: Partial<HibernateCandidate["session"]> = {}): HibernateCandidate => ({
+    session: {
+      sessionId: "pty-1",
+      ptyExited: false,
+      hibernatedAt: 0,
+      agentState: "idle",
+      workDepth: 0,
+      subagentDepth: 0,
+      monitorPending: false,
+      awaitingAnswer: false,
+      lastOutputAt: NOW - IDLE_MS,
+      lastHookAt: NOW - IDLE_MS,
+      ...session,
+    },
+    attached: false,
+    resumable: true,
+    remoteControlled: false,
+  });
+
+  it("returns null for a hidden, idle, resumable tab quiet on both channels", () => {
+    expect(hibernateBlocker(candidate(), NOW, IDLE_MS)).toBeNull();
+  });
+
+  it("names recent output when the terminal printed inside the window", () => {
+    expect(hibernateBlocker(candidate({ lastOutputAt: NOW - 60_000 }), NOW, IDLE_MS)).toBe("recent output");
+  });
+
+  it("names a recent hook when the agent reported inside the window", () => {
+    expect(hibernateBlocker(candidate({ lastHookAt: NOW - 60_000 }), NOW, IDLE_MS)).toBe("recent hook");
+  });
+
+  it("names the agent state before the quiet-window checks", () => {
+    expect(
+      hibernateBlocker(candidate({ agentState: "busy", lastOutputAt: NOW - 60_000 }), NOW, IDLE_MS),
+    ).toBe("agent not idle");
   });
 });
 

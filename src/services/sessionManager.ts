@@ -165,23 +165,41 @@ export interface HibernateCandidate {
   remoteControlled: boolean;
 }
 
+export type HibernateBlocker =
+  | "disabled"
+  | "not running"
+  | "visible"
+  | "no resume id"
+  | "remote controlled"
+  | "agent not idle"
+  | "work in flight"
+  | "recent output"
+  | "recent hook";
+
 /**
- * Pure hibernation predicate — see the module note above. Idle is judged on
- * BOTH channels: output silence proves the user isn't typing a draft into the
- * composer (keystrokes echo as output), hook silence proves the agent hasn't
- * quietly resumed. `idleMs <= 0` disables hibernation.
+ * Pure hibernation predicate — see the module note above. Returns the first
+ * reason the session must stay up, or null when it can hibernate. Idle is
+ * judged on BOTH channels: output silence proves the user isn't typing a
+ * draft into the composer (keystrokes echo as output), hook silence proves
+ * the agent hasn't quietly resumed. `idleMs <= 0` disables hibernation.
  */
-export function shouldHibernate(c: HibernateCandidate, now: number, idleMs: number): boolean {
-  if (idleMs <= 0 || !Number.isFinite(idleMs)) return false;
+export function hibernateBlocker(c: HibernateCandidate, now: number, idleMs: number): HibernateBlocker | null {
+  if (idleMs <= 0 || !Number.isFinite(idleMs)) return "disabled";
   const s = c.session;
-  if (!s.sessionId || s.ptyExited || s.hibernatedAt > 0) return false;
-  if (c.attached || !c.resumable || c.remoteControlled) return false;
-  if (s.agentState !== "idle") return false;
-  if (s.workDepth > 0 || s.subagentDepth > 0 || s.monitorPending || s.awaitingAnswer) return false;
-  if (s.lastOutputAt <= 0 || now - s.lastOutputAt < idleMs) return false;
-  if (s.lastHookAt > 0 && now - s.lastHookAt < idleMs) return false;
-  return true;
+  if (!s.sessionId || s.ptyExited || s.hibernatedAt > 0) return "not running";
+  if (c.attached) return "visible";
+  if (!c.resumable) return "no resume id";
+  if (c.remoteControlled) return "remote controlled";
+  if (s.agentState !== "idle") return "agent not idle";
+  if (s.workDepth > 0 || s.subagentDepth > 0 || s.monitorPending || s.awaitingAnswer) return "work in flight";
+  if (s.lastOutputAt <= 0 || now - s.lastOutputAt < idleMs) return "recent output";
+  if (s.lastHookAt > 0 && now - s.lastHookAt < idleMs) return "recent hook";
+  return null;
 }
+
+/** Blockers that say nothing about why an idle session stays up, so the
+ *  diagnostic log skips them: tab switches alone would flood it. */
+const UNLOGGED_HIBERNATE_BLOCKERS: ReadonlySet<HibernateBlocker> = new Set(["disabled", "not running", "visible"]);
 
 // ── SessionManager ─────────────────────────────────────────────
 
@@ -202,10 +220,12 @@ export class SessionManager implements SessionWriter {
   private registryPollInFlight = false;
   private registryPollFailures = 0;
 
-  /** Idle-agent hibernation — see shouldHibernate. */
+  /** Idle-agent hibernation — see hibernateBlocker. */
   private hibernateIdleMs = HIBERNATE_IDLE_DEFAULT_MINUTES * 60_000;
   private lastHibernateCheckAt = 0;
   private hibernating = new Set<string>();
+  /** Last hibernation blocker per session, so the diagnostic logs changes only. */
+  private hibernateBlockers = new Map<string, HibernateBlocker | null>();
 
   /** Orphan-sweep bookkeeping — see computeOrphanSweep. */
   private lastOrphanSweepAt = 0;
@@ -438,7 +458,22 @@ export class SessionManager implements SessionWriter {
         resumable: tab?.type === "claude" && !!tab.resumeSessionId,
         remoteControlled: rc.isActive(sessionKey),
       };
-      if (!shouldHibernate(candidate, now, this.hibernateIdleMs)) continue;
+      const blocker = hibernateBlocker(candidate, now, this.hibernateIdleMs);
+      // Diagnostic: log each change of reason, so a tab that never hibernates
+      // shows why in alfredo.log without a line every 30 s.
+      if (blocker !== this.hibernateBlockers.get(sessionKey)) {
+        this.hibernateBlockers.set(sessionKey, blocker);
+        if (blocker !== null && !UNLOGGED_HIBERNATE_BLOCKERS.has(blocker)) {
+          const ago = (t: number) => (t > 0 ? `${Math.round((now - t) / 60_000)}m ago` : "never");
+          debugLog(
+            `[hibernate] ${sessionKey} kept: ${blocker} (state=${session.agentState}, ` +
+              `output ${ago(session.lastOutputAt)}, hook ${ago(session.lastHookAt)}, ` +
+              `depth=${session.workDepth}/${session.subagentDepth}, monitor=${session.monitorPending}, ` +
+              `awaiting=${session.awaitingAnswer})`,
+          ).catch(() => {});
+        }
+      }
+      if (blocker !== null) continue;
       this.hibernateSession(sessionKey).catch((e) =>
         console.warn(`[hibernate] ${sessionKey} failed:`, e),
       );
@@ -1271,6 +1306,7 @@ export class SessionManager implements SessionWriter {
     useSessionStatusStore.getState().clearSessionStatus(sessionKey);
 
     this.sessions.delete(sessionKey);
+    this.hibernateBlockers.delete(sessionKey);
     if (this.sessions.size === 0) this.stopReconciler();
     try {
       await closePty(session.sessionId);
