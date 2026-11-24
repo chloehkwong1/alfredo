@@ -1,7 +1,7 @@
 ---
-title: Orchestrations and "Your turn" — a list of the worktrees that need you
-keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note, running from, subagent, orchestrator, mark, tag, tooltip, plan, map, no map]
-ui_path: Sidebar — "Your turn" at the top; Repository settings → General → Orchestrations
+title: Orchestrations — see which worktrees belong together, and their plan
+keywords: [orchestration, orchestrations, branch prefix, rule, sidebar, worktree note, running from, subagent, orchestrator, mark, tag, tooltip, plan, map, no map]
+ui_path: Sidebar — the mark or the orchestrator tag on a row; Repository settings → General → Orchestrations
 ---
 
 An orchestration is a name plus a branch prefix, or just a name that
@@ -13,25 +13,18 @@ nobody else sees them and your team's repo is untouched. Alfredo also
 makes an orchestration by itself when one session works in other
 worktrees (see **Worktrees a session works in** below).
 
-The **Your turn** list sits at the top of the sidebar. It shows the
-worktrees in your orchestrations that need you, oldest first. With no
-orchestrations, or nothing waiting, it doesn't appear at all.
-
 **Add a rule:** Repository settings → General → **Orchestrations** →
 **Add orchestration**. Give it a name and a branch prefix (for example
 `pay/`). Under each rule Alfredo shows how many worktrees match right
 now. Rows missing a name or a prefix are dropped when you save. The
-list updates as soon as you save; no restart.
+marks update as soon as you save; no restart.
 
 **Without a rule:** worktrees whose
 [worktree note files](external-worktrees.md)
 have the same `orchestration` form an orchestration with that name.
-They appear in **Your turn** with no rule. The item is the note's
-`label`, or the branch when the note has no label. A worktree whose
-note names an orchestration and that also matches a rule shows once,
-with the note's names. A note with only a `label` renames the sidebar
-row; under a rule, **Your turn** still shows the branch after the
-prefix. A rule
+A worktree whose note names an orchestration and that also matches a
+rule is in the note's orchestration. A note with only a `label`
+renames the sidebar row. A rule
 with the same name as a note orchestration adds its other worktrees to
 it, except those a note puts in another orchestration.
 
@@ -68,10 +61,8 @@ session is running in Alfredo; a hibernated tab does not count.
 The session's worktree and the worktrees of the same repo that it
 works in form an orchestration. It is named after the session's
 worktree: the name you gave the row, or its note's `label`, or its
-branch. In **Your turn** the session's worktree is the item
-`orchestrator`. A subagent cannot ask you a question, so a question
-shows on the session's row, and a click opens the session's worktree.
-Rules and notes come first: a worktree they already place keeps that
+branch. A subagent cannot ask you a question, so a question shows on
+the session's row. Rules and notes come first: a worktree they already place keeps that
 place.
 
 A link stays until you close the session's tab or quit Alfredo. The
@@ -102,7 +93,7 @@ Archived worktrees and the kanban cards show neither. Neither takes a
 click: a click goes to the row, as a click on the name does.
 
 - A worktree shows one mark. If two orchestrations list it, the first
-  one wins, and it is the same one that **Your turn** uses.
+  one wins.
 - An orchestration with only one row left shows no mark and no tag.
   The exception is an orchestrator that has a plan: it keeps its tag,
   so you can still reach the map before its worktrees exist.
@@ -127,9 +118,7 @@ click: a click goes to the row, as a click on the name does.
    worktree.
 
 Notes come before links. An orchestration from a rule, or from notes
-with no `role`, has no orchestrator, so no row has the tag. A question
-that the orchestrator's own session asks shows in **Your turn** as the
-item `orchestrator`, for both ways.
+with no `role`, has no orchestrator, so no row has the tag.
 
 **The tooltip:** point at the mark or the tag and a tooltip opens to
 the right. It is read-only; nothing in it takes a click. From top to
@@ -181,41 +170,3 @@ looks like this:
 - **Todo:** dashed outline.
 - **Active, and its worktree needs you:** blue, with a glow.
 - **Active, any other case:** amber.
-
-**What a row shows:**
-
-- **Answer** — the agent is waiting for input. The row shows its
-  question, then the orchestration name, the item and `waiting` plus
-  how long.
-- **Check** — the agent finished, errored, or is ready to start. The
-  row shows which, then the orchestration name, the item and how long.
-
-The item is the branch after the prefix, or the name from a worktree
-note. The orchestrator's worktree is the item `orchestrator`, whether
-the orchestration comes from notes or from links. In an orchestration
-made from links, a worktree the session works in is the row's name.
-
-Click a row to open that worktree. That is all it does. The list
-ignores **Pinned only**.
-
-A worktree is in the list under the same test as the
-[dock badge](dock-badge.md). An **Answer** row stays until you answer
-the question, even while you look at the worktree. A **Check** row for
-a finished agent goes when you open the worktree, unless you mark it
-unread.
-
-**Limits:**
-
-- A session that started before the update shows "Waiting for input"
-  without the question until it is restarted.
-- Only questions asked with the question tool, or a plan approval,
-  have text. A question written as plain prose, a permission prompt,
-  or a wait found by the status backstop shows "Waiting for input".
-- A question whose hook data is larger than 64 KB, or that Alfredo
-  cannot read, shows "Waiting for input" without the text.
-- When the agent asks several questions at once, the row shows the
-  first.
-- If you cancel a question with Esc, the row shows "Waiting for input"
-  until you send the next prompt.
-- The question text stays in memory. It is never written to a log or
-  a file, so it is gone when you quit.
