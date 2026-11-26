@@ -63,12 +63,20 @@ class LifecycleManager {
     worktreeId: string,
     repoPath: string,
     worktreeName: string,
+    opts: { goneFrom?: string } = {},
   ): Promise<void> {
     // Snapshot tabs and paths before removing from store
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const { worktrees } = useWorkspaceStore.getState();
     const worktreePath = worktrees.find((w) => w.id === worktreeId)?.path;
     const worktreePaths = worktrees.map((w) => w.path);
+
+    // A worktree that vanished outside Alfredo: Rust confirms the folder is
+    // gone before anything is touched, and throws if it is still there. That
+    // leaves the row, its tabs, its sessions and its session file intact.
+    if (opts.goneFrom) {
+      await deleteWorktreeApi(repoPath, worktreeName, true, opts.goneFrom);
+    }
 
     // 1. Remove from all stores atomically (synchronous)
     useWorkspaceStore.getState().removeWorktree(worktreeId);
@@ -96,11 +104,14 @@ class LifecycleManager {
       );
     }
 
-    // 4. Delete git worktree (async, log failure)
-    try {
-      await deleteWorktreeApi(repoPath, worktreeName, true);
-    } catch (e) {
-      console.error("Failed to delete worktree:", e);
+    // 4. Delete git worktree (async, log failure). Already pruned above for a
+    //    worktree that vanished; its branch is never deleted.
+    if (!opts.goneFrom) {
+      try {
+        await deleteWorktreeApi(repoPath, worktreeName, true);
+      } catch (e) {
+        console.error("Failed to delete worktree:", e);
+      }
     }
 
     // 5. Delete session file (async, non-critical)

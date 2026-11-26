@@ -490,6 +490,12 @@ fn read_plan(plan: Option<&serde_json::Value>) -> Vec<PlanItem> {
 }
 
 /// Delete a worktree by name.
+///
+/// `gone_from` is for a worktree that disappeared outside Alfredo: pass the
+/// folder it lived in. The command then refuses while that folder still
+/// exists, clears Alfredo's config for it and prunes git's record, but deletes
+/// no folder and no branch. Whoever removed the worktree may have kept the
+/// branch on purpose.
 #[tauri::command]
 pub async fn delete_worktree(
     app: AppHandle,
@@ -497,7 +503,11 @@ pub async fn delete_worktree(
     repo_path: String,
     worktree_name: String,
     force: bool,
+    gone_from: Option<String>,
 ) -> Result<()> {
+    if let Some(ref path) = gone_from {
+        git_manager::ensure_worktree_folder_gone(path)?;
+    }
     let app_data_dir = resolve_app_data_dir(&app)?;
     // Hold port_lock across the short load→mutate→save window (dropped before
     // the git deletion) so this wholesale save can't clobber a concurrent
@@ -549,6 +559,9 @@ pub async fn delete_worktree(
         let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
         base_path
     };
+    if gone_from.is_some() {
+        return git_manager::prune_worktrees(&repo_path).await;
+    }
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
 

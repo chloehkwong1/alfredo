@@ -128,6 +128,32 @@ fn dispatch_open_issue<R: tauri::Runtime>(
     }
 }
 
+/// Raise the soft open-file limit towards the hard limit. A Dock or `open`
+/// launch gets launchd's soft limit of 256, and each agent tab holds several
+/// descriptors (PTY, pipes, hook sockets), so about 30 sessions use them all
+/// up. After that every open, spawn and accept fails with EMFILE: on
+/// 2026-11-26 the worktree listing came back short and discovery deleted
+/// worktrees it could not read. Returns the old and new soft limits.
+#[cfg(unix)]
+fn raise_open_file_limit() -> Option<(libc::rlim_t, libc::rlim_t)> {
+    let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: getrlimit/setrlimit only read or write the struct we pass.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) } != 0 {
+        return None;
+    }
+    let old = lim.rlim_cur;
+    // macOS refuses a soft limit above OPEN_MAX (10240), even when the hard
+    // limit is RLIM_INFINITY.
+    let target = lim.rlim_max.min(10_240);
+    if target > old {
+        lim.rlim_cur = target;
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &lim) } != 0 {
+            return None;
+        }
+    }
+    Some((old, lim.rlim_cur))
+}
+
 pub fn run() {
     // Dock/Finder launches have no locale in the environment, and WKWebView
     // falls back to MacRoman as the default C-string encoding — which mojibakes
@@ -173,6 +199,11 @@ pub fn run() {
         .manage(commands::linear_launch::PendingOpenIssue::default())
         .setup(|app| {
             crate::logging::init();
+            #[cfg(unix)]
+            match raise_open_file_limit() {
+                Some((old, new)) => tracing::info!(old, new, "[startup] open-file soft limit"),
+                None => tracing::warn!("[startup] could not raise the open-file limit"),
+            }
             // Cold-start handling for Linear "open in Alfredo": the
             // single-instance callback only fires for a *second* instance, so a
             // first/fresh instance launched with `open-issue …` args must parse

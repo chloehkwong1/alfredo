@@ -58,9 +58,11 @@ export function computeDiscovery({ known, freshWorktrees, knownPaths }: Discover
  *  (`{repo_path}::{branch}`), and the branch token is not stable: a `git
  *  checkout -b`, or a rebase that finishes on a detached HEAD (where
  *  git_manager falls back to the directory name), re-ids a worktree that never
- *  left disk. Removal is destructive — it force-deletes the directory — so it
+ *  left disk. Removal kills the row's sessions and drops its tabs, so it
  *  requires the path to be absent too, the mirror of the path-novelty rule
- *  `computeDiscovery` uses to tell a branch switch from a real worktree add. */
+ *  `computeDiscovery` uses to tell a branch switch from a real worktree add.
+ *  Absent from the listing is still not proof the folder is gone: the
+ *  lifecycle call checks the disk before it touches anything. */
 export function computeRemovals(
   storeWts: Array<{ id: string; path: string; creating?: boolean; createError?: string }>,
   freshIds: Set<string>,
@@ -170,9 +172,8 @@ async function pollRepo(
     // silent merge-drop: it closes PTY sessions (a running claude would
     // otherwise keep running with no UI to kill it), clears tab/layout/PR
     // state, releases the dev-server port, prunes the git admin entry and
-    // repo-config leftovers, and deletes the session file. The backend
-    // delete is best-effort and tolerates the directory already being gone.
-    // Re-snapshot for removals: a UI-initiated delete that completed while we
+    // repo-config leftovers, and deletes the session file. It deletes no
+    // folder and no branch. Re-snapshot for removals: a UI-initiated delete that completed while we
     // awaited has already run this cleanup, and the stale snapshot would run
     // it twice.
     const currentWts = useWorkspaceStore
@@ -184,9 +185,17 @@ async function pollRepo(
     for (const removedId of computeRemovals(currentWts, freshIds, freshPaths)) {
       const gone = byId.get(removedId);
       if (!gone) continue;
-      await lifecycleManager
-        .removeWorktree(gone.id, repo, gone.name)
-        .catch((e) => console.warn(`[worktree-discovery] cleanup failed for ${gone.path}:`, e));
+      // `goneFrom`: Rust removes nothing from disk and refuses while the
+      // folder still exists. A refusal means this listing missed a live
+      // worktree (on 2026-11-26 an EMFILE did, and discovery deleted ~45
+      // worktrees), so stop the tick: the rest of the list is not to be
+      // trusted either, and setWorktreesForRepo below would drop the row.
+      try {
+        await lifecycleManager.removeWorktree(gone.id, repo, gone.name, { goneFrom: gone.path });
+      } catch (e) {
+        console.warn(`[worktree-discovery] ${gone.path} missing from the listing but not gone:`, e);
+        return;
+      }
       if (isCancelled()) return;
     }
 

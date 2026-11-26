@@ -118,12 +118,16 @@ export function runSetupScripts(
   return invoke("run_setup_scripts", { repoPath, worktreePath });
 }
 
+/** With `goneFrom` (the folder of a worktree that vanished outside Alfredo),
+ *  Rust refuses while that folder still exists and otherwise only prunes:
+ *  no folder and no branch is deleted. */
 export function deleteWorktree(
   repoPath: string,
   worktreeName: string,
   force = true,
+  goneFrom?: string,
 ): Promise<void> {
-  return invoke("delete_worktree", { repoPath, worktreeName, force });
+  return invoke("delete_worktree", { repoPath, worktreeName, force, goneFrom });
 }
 
 /** Uncommitted work a worktree delete would destroy. `untracked` files are the

@@ -331,6 +331,35 @@ pub async fn create_worktree(
     Ok(worktree_dir)
 }
 
+/// Fail unless the worktree folder at `path` is gone from disk. A failed check
+/// (EMFILE, permissions) counts as "still there": the caller is about to
+/// treat the worktree as deleted, and guessing wrong loses work.
+pub fn ensure_worktree_folder_gone(path: &str) -> Result<(), AppError> {
+    match Path::new(path).try_exists() {
+        Ok(false) => Ok(()),
+        Ok(true) => Err(AppError::Git(format!("worktree folder still exists: {path}"))),
+        Err(e) => Err(AppError::Git(format!("could not check worktree folder {path}: {e}"))),
+    }
+}
+
+/// Drop git's records of worktrees whose folders are gone. Touches no folder
+/// and no branch.
+pub async fn prune_worktrees(repo_path: &str) -> Result<(), AppError> {
+    let output = git_command()
+        .args(["worktree", "prune"])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "git worktree prune failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    Ok(())
+}
+
 /// Delete a worktree by shelling out to `git worktree remove`, then delete
 /// the local branch with `git branch -D`.
 ///
@@ -1914,9 +1943,14 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
     for name in worktree_names.iter() {
         let Ok(Some(name)) = name else { continue };
 
+        // Skip a worktree only when it is missing. Any other read error
+        // (EMFILE above all) fails the whole listing: discovery takes a
+        // worktree that is absent from this list as deleted and removes it,
+        // so a short list is worse than none.
         let wt = match repo.find_worktree(name) {
             Ok(wt) => wt,
-            Err(_) => continue,
+            Err(e) if e.code() == git2::ErrorCode::NotFound => continue,
+            Err(e) => return Err(AppError::Git(format!("failed to read worktree {name}: {e}"))),
         };
 
         // Withhold it until the checkout lands — it appears on the next poll.
@@ -1928,17 +1962,33 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
 
         // Filter to only worktrees under the configured base path
         if let Some(ref base) = base_filter {
-            if let Ok(canonical) = wt_path.canonicalize() {
-                if !canonical.starts_with(base) {
-                    continue;
-                }
-            } else {
+            match wt_path.canonicalize() {
+                Ok(canonical) if !canonical.starts_with(base) => continue,
+                Ok(_) => {}
                 // Path doesn't exist on disk — skip it
-                continue;
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => {
+                    return Err(AppError::Git(format!(
+                        "failed to resolve worktree path {}: {e}",
+                        wt_path.display()
+                    )))
+                }
             }
         }
 
-        let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
+        // Same rule for the branch: the fallback name re-ids the worktree,
+        // which orphans its tabs, so a read error must not reach it.
+        let branch = match Repository::open(&wt_path) {
+            Ok(wt_repo) => resolve_worktree_branch(&wt_repo),
+            Err(e) if e.code() == git2::ErrorCode::NotFound => None,
+            Err(e) => {
+                return Err(AppError::Git(format!(
+                    "failed to open worktree {}: {e}",
+                    wt_path.display()
+                )))
+            }
+        }
+        .unwrap_or_else(|| name.to_string());
         let last_commit_epoch = get_last_commit_epoch(&wt_path);
 
         worktrees.push(Worktree {
@@ -1989,7 +2039,13 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
     let mut count = 0usize;
     for name in worktree_names.iter() {
         let Ok(Some(name)) = name else { continue };
-        let Ok(wt) = repo.find_worktree(name) else { continue };
+        // Match list_worktrees: skip only a missing worktree, fail on any
+        // other read error rather than under-count.
+        let wt = match repo.find_worktree(name) {
+            Ok(wt) => wt,
+            Err(e) if e.code() == git2::ErrorCode::NotFound => continue,
+            Err(e) => return Err(AppError::Git(format!("failed to read worktree {name}: {e}"))),
+        };
         // Match list_worktrees: a still-initializing worktree isn't countable
         // yet, or the discovery poll's count check would disagree with its
         // listing on every tick during a checkout.
@@ -2000,7 +2056,14 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
         if let Some(ref base) = base_filter {
             match wt_path.canonicalize() {
                 Ok(canonical) if canonical.starts_with(base) => {}
-                _ => continue,
+                Ok(_) => continue,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => {
+                    return Err(AppError::Git(format!(
+                        "failed to resolve worktree path {}: {e}",
+                        wt_path.display()
+                    )))
+                }
             }
         }
         count += 1;
@@ -3442,6 +3505,67 @@ mod tests {
         delete_worktree(repo_path, "linked-branch", true, None)
             .await
             .expect("delete should succeed");
+    }
+
+    /// 2026-11-26: with the open-file limit used up, worktrees that libgit2
+    /// could not read dropped out of the listing, and discovery deleted them
+    /// as "gone". A worktree that exists but can't be read must fail the
+    /// listing and the count, not vanish from them.
+    #[tokio::test]
+    async fn test_list_worktrees_fails_rather_than_drops_an_unreadable_worktree() {
+        use std::os::unix::fs::PermissionsExt;
+        // Root reads through mode 000, so the setup below proves nothing.
+        if unsafe { libc::geteuid() } == 0 {
+            return;
+        }
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        create_worktree(repo_path, "unreadable-wt", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+        // An unreadable `gitdir` file stands in for EMFILE: git still lists the
+        // worktree, but libgit2 fails to read it with an error that is not
+        // NotFound. (An unreadable admin *dir* is no good: libgit2's own
+        // worktree list skips it before our code sees it.)
+        let gitdir = dir.path().join(".git/worktrees/unreadable-wt/gitdir");
+        std::fs::set_permissions(&gitdir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        let listed = list_worktrees(repo_path, None);
+        let counted = count_worktrees(repo_path, None);
+
+        std::fs::set_permissions(&gitdir, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(listed.is_err(), "listing must fail, got {:?}", listed.map(|w| w.len()));
+        assert!(counted.is_err(), "count must fail, got {counted:?}");
+    }
+
+    #[test]
+    fn test_ensure_worktree_folder_gone() {
+        let dir = tempfile::tempdir().unwrap();
+        let present = dir.path().to_str().unwrap();
+        assert!(ensure_worktree_folder_gone(present).is_err());
+        let missing = dir.path().join("deleted-worktree");
+        assert!(ensure_worktree_folder_gone(missing.to_str().unwrap()).is_ok());
+    }
+
+    /// The discovery path for a worktree removed outside Alfredo: prune git's
+    /// record, keep the branch (whoever removed the folder may want it).
+    #[tokio::test]
+    async fn test_prune_worktrees_keeps_the_branch() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let wt_path = create_worktree(repo_path, "pruned-wt", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+        std::fs::remove_dir_all(&wt_path).unwrap();
+
+        prune_worktrees(repo_path).await.expect("prune should succeed");
+
+        let repo = Repository::open(repo_path).unwrap();
+        assert!(repo.find_worktree("pruned-wt").is_err(), "git's record is pruned");
+        assert!(
+            repo.find_branch("pruned-wt", git2::BranchType::Local).is_ok(),
+            "the branch survives"
+        );
     }
 
     /// Git holds `.git/worktrees/<name>/locked` = "initializing" for the whole

@@ -371,6 +371,43 @@ describe("lifecycleManager", () => {
       // Session file deletion should still be attempted
       expect(mockDeleteSessionFile).toHaveBeenCalledWith(repoPath, worktreeId);
     });
+
+    describe("goneFrom (the worktree vanished outside Alfredo)", () => {
+      const goneFrom = "/wt/feature-branch";
+
+      it("asks Rust to confirm and prune first, and never deletes the worktree", async () => {
+        const callOrder: string[] = [];
+        mockDeleteWorktreeApi.mockImplementation((...args: unknown[]) => {
+          callOrder.push(`deleteWorktreeApi:${String(args[3])}`);
+          return Promise.resolve();
+        });
+        mockRemoveWorktree.mockImplementation(() => callOrder.push("removeWorktree"));
+
+        await lifecycleManager.removeWorktree(worktreeId, repoPath, worktreeName, { goneFrom });
+
+        expect(mockDeleteWorktreeApi).toHaveBeenCalledTimes(1);
+        expect(mockDeleteWorktreeApi).toHaveBeenCalledWith(repoPath, worktreeName, true, goneFrom);
+        expect(callOrder).toEqual([`deleteWorktreeApi:${goneFrom}`, "removeWorktree"]);
+        expect(mockDeleteSessionFile).toHaveBeenCalledWith(repoPath, worktreeId);
+      });
+
+      // 2026-11-26: a listing that missed live worktrees made discovery remove
+      // them. When Rust finds the folder still there, nothing may be touched.
+      it("touches nothing when Rust finds the folder still on disk", async () => {
+        mockDeleteWorktreeApi.mockRejectedValue(new Error("worktree folder still exists"));
+
+        await expect(
+          lifecycleManager.removeWorktree(worktreeId, repoPath, worktreeName, { goneFrom }),
+        ).rejects.toThrow("still exists");
+
+        expect(mockRemoveWorktree).not.toHaveBeenCalled();
+        expect(mockRemoveWorktreeTabs).not.toHaveBeenCalled();
+        expect(mockCloseSession).not.toHaveBeenCalled();
+        expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+        expect(mockStopDetectedServers).not.toHaveBeenCalled();
+        expect(mockDeleteSessionFile).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("initWorktreeDefaults", () => {
