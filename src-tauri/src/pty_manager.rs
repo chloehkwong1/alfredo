@@ -1382,6 +1382,15 @@ fn write_hooks_config(
     let path = claude_dir.join("settings.local.json");
     eprintln!("[hooks] write claude hooks → {}", path.display());
 
+    // A setup script can link this file to the repo root before the root has
+    // a `.claude` folder. Create the link target's folder, so the write below
+    // goes through the link and does not fail.
+    if let Ok(target) = std::fs::read_link(&path) {
+        if let Some(target_dir) = claude_dir.join(target).parent() {
+            std::fs::create_dir_all(target_dir)?;
+        }
+    }
+
     // Read existing config, or start with an empty object
     let mut config: serde_json::Value = if path.exists() {
         let contents = std::fs::read_to_string(&path)?;
@@ -2632,6 +2641,34 @@ mod tests {
         assert!(!is_alfredo_session_comm("vim"));
         assert!(!is_alfredo_session_comm("Code Helper"));
         assert!(!is_alfredo_session_comm("node"));
+    }
+
+    /// A setup script can link the worktree's settings.local.json to the repo
+    /// root before the root has a `.claude` folder. The write must go through
+    /// the link, or the session starts with no hooks and its status never
+    /// leaves "busy".
+    #[cfg(unix)]
+    #[test]
+    fn write_hooks_config_writes_through_a_symlink_whose_target_folder_is_missing() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        let root_settings = tmp.path().join("root/.claude/settings.local.json");
+        std::fs::create_dir_all(worktree.join(".claude")).unwrap();
+        std::os::unix::fs::symlink(&root_settings, worktree.join(".claude/settings.local.json"))
+            .unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents = std::fs::read_to_string(&root_settings).expect("read link target");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+        assert!(config["hooks"]["Stop"].is_array());
+        assert!(worktree
+            .join(".claude/settings.local.json")
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     /// AskUserQuestion blocks waiting on the user but fires no
