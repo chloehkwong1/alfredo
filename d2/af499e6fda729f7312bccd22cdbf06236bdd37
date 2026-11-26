@@ -1,0 +1,20 @@
+docs/features/detected-dev-servers.md
+  s_ee9ecb9306bbde::t_2c14af59d30787 1-42
+  s_ee9ecb9306bbde::t_7008f2278a8816 43-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d2af499e6fda729f7312bccd22cdbf06236bdd37",
+  "prompts": {},
+  "sessions": {
+    "s_ee9ecb9306bbde": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a0878dd5-c0ad-49da-8219-7efeb343c859",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
