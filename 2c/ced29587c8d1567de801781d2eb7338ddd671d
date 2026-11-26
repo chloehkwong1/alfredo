@@ -1,0 +1,23 @@
+src/hooks/useWorktreeDiscovery.test.ts
+  s_f6c2ff2215cd06::t_1acd053d416831 1,245-248
+  s_f6c2ff2215cd06::t_a5dee003b6fe81 2-4,14-16,241-244,249-290
+  s_f6c2ff2215cd06::t_8a77f178ab077f 291
+src/hooks/useWorktreeDiscovery.ts
+  s_f6c2ff2215cd06::t_a5dee003b6fe81 126-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2cced29587c8d1567de801781d2eb7338ddd671d",
+  "prompts": {},
+  "sessions": {
+    "s_f6c2ff2215cd06": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3946e40d-33c8-4d88-a543-991d1775f4ea",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
