@@ -537,18 +537,27 @@ pub async fn delete_worktree(
         // delete and error "no longer exists" on every sync. Resolved here
         // (worktree still tracked) because after the git delete there is
         // nothing left to resolve the branch against.
-        let (_, deleted_branch) =
+        let (resolved_path, deleted_branch) =
             git_manager::resolve_worktree(&repo_path, &worktree_name, config.worktree_base_path.as_deref())
                 .await;
-        let reparented = config_manager::reparent_children_of_deleted(
-            &mut config,
-            &worktree_name,
-            deleted_branch.as_deref(),
-        );
-        if !reparented.is_empty() {
-            eprintln!(
-                "[worktree] reparented stack children of deleted {worktree_name}: {reparented:?}"
+        if gone_from.is_some() {
+            // The caller's path can be stale (`git worktree move`), so check
+            // the folder git has on record too. Nothing is saved yet: an
+            // error here leaves the config as it was.
+            git_manager::ensure_worktree_folder_gone(&resolved_path.to_string_lossy())?;
+        } else {
+            // Not for a worktree that vanished: its branch is kept, so its
+            // children still have a parent to point at.
+            let reparented = config_manager::reparent_children_of_deleted(
+                &mut config,
+                &worktree_name,
+                deleted_branch.as_deref(),
             );
+            if !reparented.is_empty() {
+                eprintln!(
+                    "[worktree] reparented stack children of deleted {worktree_name}: {reparented:?}"
+                );
+            }
         }
         // And for the stack relationship: a surviving parent override would make the
         // next worktree of this name a phantom stack child, and a surviving baseline
@@ -560,7 +569,13 @@ pub async fn delete_worktree(
         base_path
     };
     if gone_from.is_some() {
-        return git_manager::prune_worktrees(&repo_path).await;
+        // The folder is confirmed gone and the config is saved, so a failed
+        // prune must not fail the command: the caller would keep the row. A
+        // stale record is harmless, and the next delete prunes it.
+        if let Err(e) = git_manager::prune_worktrees(&repo_path).await {
+            tracing::warn!(worktree = %worktree_name, error = %e, "[worktree] prune after external removal failed");
+        }
+        return Ok(());
     }
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }

@@ -182,24 +182,28 @@ async function pollRepo(
     const freshIds = new Set(fresh.map((wt) => wt.id));
     const freshPaths = new Set(fresh.map((wt) => wt.path));
     const byId = new Map(currentWts.map((wt) => [wt.id, wt]));
+    // Rows the listing lacks but whose folder is still on disk. They stay.
+    const stillOnDisk: typeof currentWts = [];
     for (const removedId of computeRemovals(currentWts, freshIds, freshPaths)) {
       const gone = byId.get(removedId);
       if (!gone) continue;
       // `goneFrom`: Rust removes nothing from disk and refuses while the
-      // folder still exists. A refusal means this listing missed a live
-      // worktree (on 2026-11-26 an EMFILE did, and discovery deleted ~45
-      // worktrees), so stop the tick: the rest of the list is not to be
-      // trusted either, and setWorktreesForRepo below would drop the row.
+      // folder still exists. A refusal means the listing lacks a live
+      // worktree: a read error did that on 2026-11-26 (discovery then deleted
+      // ~45 worktrees), and so does a changed worktree base path. Keep the
+      // row, or setWorktreesForRepo below would drop it and its tabs.
       try {
         await lifecycleManager.removeWorktree(gone.id, repo, gone.name, { goneFrom: gone.path });
       } catch (e) {
         console.warn(`[worktree-discovery] ${gone.path} missing from the listing but not gone:`, e);
-        return;
+        stillOnDisk.push(gone);
       }
       if (isCancelled()) return;
     }
 
-    useWorkspaceStore.getState().setWorktreesForRepo(repo, fresh);
+    useWorkspaceStore
+      .getState()
+      .setWorktreesForRepo(repo, stillOnDisk.length > 0 ? [...fresh, ...stillOnDisk] : fresh);
 
     for (const id of decision.adoptIds) {
       const wt = fresh.find((w) => w.id === id);

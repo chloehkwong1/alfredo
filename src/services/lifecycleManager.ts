@@ -58,6 +58,10 @@ class LifecycleManager {
    * Remove a worktree: clean up all stores, close sessions, delete git
    * worktree, and delete session file. Best-effort — failures in git/fs
    * cleanup don't leave store state inconsistent.
+   *
+   * With `goneFrom` (the folder of a worktree that vanished outside Alfredo)
+   * nothing on disk is deleted, and the call throws, with nothing touched,
+   * when that folder still exists.
    */
   async removeWorktree(
     worktreeId: string,
@@ -65,18 +69,19 @@ class LifecycleManager {
     worktreeName: string,
     opts: { goneFrom?: string } = {},
   ): Promise<void> {
-    // Snapshot tabs and paths before removing from store
-    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const { worktrees } = useWorkspaceStore.getState();
-    const worktreePath = worktrees.find((w) => w.id === worktreeId)?.path;
-    const worktreePaths = worktrees.map((w) => w.path);
-
     // A worktree that vanished outside Alfredo: Rust confirms the folder is
     // gone before anything is touched, and throws if it is still there. That
     // leaves the row, its tabs, its sessions and its session file intact.
     if (opts.goneFrom) {
       await deleteWorktreeApi(repoPath, worktreeName, true, opts.goneFrom);
     }
+
+    // Snapshot tabs and paths before removing from store. After the await
+    // above: a tab opened while it ran must be closed below too.
+    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const { worktrees } = useWorkspaceStore.getState();
+    const worktreePath = worktrees.find((w) => w.id === worktreeId)?.path;
+    const worktreePaths = worktrees.map((w) => w.path);
 
     // 1. Remove from all stores atomically (synchronous)
     useWorkspaceStore.getState().removeWorktree(worktreeId);

@@ -143,15 +143,43 @@ fn raise_open_file_limit() -> Option<(libc::rlim_t, libc::rlim_t)> {
     }
     let old = lim.rlim_cur;
     // macOS refuses a soft limit above OPEN_MAX (10240), even when the hard
-    // limit is RLIM_INFINITY.
-    let target = lim.rlim_max.min(10_240);
-    if target > old {
-        lim.rlim_cur = target;
-        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &lim) } != 0 {
-            return None;
+    // limit is RLIM_INFINITY. Step down if the kernel refuses that too.
+    for target in [10_240, 4_096, 1_024] {
+        let target = lim.rlim_max.min(target);
+        if target <= old {
+            break;
+        }
+        let wanted = libc::rlimit { rlim_cur: target, rlim_max: lim.rlim_max };
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &wanted) } == 0 {
+            return Some((old, target));
         }
     }
-    Some((old, lim.rlim_cur))
+    Some((old, old))
+}
+
+/// Log the open-file count against the limit every ten minutes, as a warning
+/// once it passes 80%. Nothing recorded it on 2026-11-26, so a slow leak could
+/// not be told apart from plain load (three descriptors per PTY session).
+#[cfg(unix)]
+fn log_open_files_periodically(app: tauri::AppHandle) {
+    use tauri::Manager;
+    std::thread::spawn(move || loop {
+        // `/dev/fd` lists this process's descriptors; one of them is the
+        // listing itself.
+        let open = std::fs::read_dir("/dev/fd").map(|d| d.count().saturating_sub(1)).ok();
+        let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: getrlimit only writes the struct we pass.
+        let limit = (unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) } == 0)
+            .then_some(lim.rlim_cur);
+        let sessions = app.state::<PtyManager>().list().map(|s| s.len()).ok();
+        match (open, limit) {
+            (Some(open), Some(limit)) if open as u64 * 5 >= limit * 4 => {
+                tracing::warn!(open, limit, ?sessions, "[open-files] close to the limit")
+            }
+            _ => tracing::info!(?open, ?limit, ?sessions, "[open-files]"),
+        }
+        std::thread::sleep(std::time::Duration::from_secs(600));
+    });
 }
 
 pub fn run() {
@@ -202,8 +230,10 @@ pub fn run() {
             #[cfg(unix)]
             match raise_open_file_limit() {
                 Some((old, new)) => tracing::info!(old, new, "[startup] open-file soft limit"),
-                None => tracing::warn!("[startup] could not raise the open-file limit"),
+                None => tracing::warn!("[startup] could not read the open-file limit"),
             }
+            #[cfg(unix)]
+            log_open_files_periodically(app.handle().clone());
             // Cold-start handling for Linear "open in Alfredo": the
             // single-instance callback only fires for a *second* instance, so a
             // first/fresh instance launched with `open-issue …` args must parse

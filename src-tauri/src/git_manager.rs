@@ -1932,64 +1932,29 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
 
-    let worktree_names = repo
-        .worktrees()
-        .map_err(|e| AppError::Git(format!("failed to list worktrees: {e}")))?;
-
-    let base_filter = base_path.and_then(|p| std::path::Path::new(p).canonicalize().ok());
-
     let mut worktrees = Vec::new();
 
-    for name in worktree_names.iter() {
-        let Ok(Some(name)) = name else { continue };
-
-        // Skip a worktree only when it is missing. Any other read error
-        // (EMFILE above all) fails the whole listing: discovery takes a
-        // worktree that is absent from this list as deleted and removes it,
-        // so a short list is worse than none.
-        let wt = match repo.find_worktree(name) {
-            Ok(wt) => wt,
-            Err(e) if e.code() == git2::ErrorCode::NotFound => continue,
-            Err(e) => return Err(AppError::Git(format!("failed to read worktree {name}: {e}"))),
-        };
-
-        // Withhold it until the checkout lands — it appears on the next poll.
-        if is_initializing(&repo, name, &wt) {
-            continue;
-        }
-
-        let wt_path = wt.path().to_path_buf();
-
-        // Filter to only worktrees under the configured base path
-        if let Some(ref base) = base_filter {
-            match wt_path.canonicalize() {
-                Ok(canonical) if !canonical.starts_with(base) => continue,
-                Ok(_) => {}
-                // Path doesn't exist on disk — skip it
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(e) => {
-                    return Err(AppError::Git(format!(
-                        "failed to resolve worktree path {}: {e}",
-                        wt_path.display()
-                    )))
-                }
+    for (name, wt_path) in listable_worktrees(&repo, base_path)? {
+        let name = name.as_str();
+        // Same rule as listable_worktrees for the branch: the fallback name
+        // re-ids the worktree, which orphans its tabs, so only a missing
+        // folder or an undeterminable branch may reach it, never a read error.
+        let (branch, last_commit_epoch) = match Repository::open(&wt_path) {
+            Ok(wt_repo) => {
+                let branch = read_worktree_branch(&wt_repo).map_err(|e| {
+                    AppError::Git(format!("failed to read HEAD of {}: {e}", wt_path.display()))
+                })?;
+                (branch, last_commit_epoch(&wt_repo))
             }
-        }
-
-        // Same rule for the branch: the fallback name re-ids the worktree,
-        // which orphans its tabs, so a read error must not reach it.
-        let branch = match Repository::open(&wt_path) {
-            Ok(wt_repo) => resolve_worktree_branch(&wt_repo),
-            Err(e) if e.code() == git2::ErrorCode::NotFound => None,
+            Err(e) if e.code() == git2::ErrorCode::NotFound => (None, None),
             Err(e) => {
                 return Err(AppError::Git(format!(
                     "failed to open worktree {}: {e}",
                     wt_path.display()
                 )))
             }
-        }
-        .unwrap_or_else(|| name.to_string());
-        let last_commit_epoch = get_last_commit_epoch(&wt_path);
+        };
+        let branch = branch.unwrap_or_else(|| name.to_string());
 
         worktrees.push(Worktree {
             id: worktree_id(repo_path, &branch),
@@ -2029,27 +1994,36 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
 pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize, AppError> {
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
+    Ok(listable_worktrees(&repo, base_path)?.len())
+}
 
+/// The admin name and folder of each worktree that discovery may see: past its
+/// initial checkout and under `base_path`. One walk for `list_worktrees` and
+/// `count_worktrees`, so the count check and the listing can't disagree.
+///
+/// A worktree is skipped only when it is missing. Any other read error (EMFILE
+/// above all) fails the whole walk: discovery takes a worktree that is absent
+/// from the listing as deleted and removes its row, so a short list is worse
+/// than none.
+fn listable_worktrees(
+    repo: &Repository,
+    base_path: Option<&str>,
+) -> Result<Vec<(String, PathBuf)>, AppError> {
     let worktree_names = repo
         .worktrees()
         .map_err(|e| AppError::Git(format!("failed to list worktrees: {e}")))?;
+    let base_filter = base_path.and_then(|p| Path::new(p).canonicalize().ok());
 
-    let base_filter = base_path.and_then(|p| std::path::Path::new(p).canonicalize().ok());
-
-    let mut count = 0usize;
+    let mut found = Vec::new();
     for name in worktree_names.iter() {
         let Ok(Some(name)) = name else { continue };
-        // Match list_worktrees: skip only a missing worktree, fail on any
-        // other read error rather than under-count.
         let wt = match repo.find_worktree(name) {
             Ok(wt) => wt,
             Err(e) if e.code() == git2::ErrorCode::NotFound => continue,
             Err(e) => return Err(AppError::Git(format!("failed to read worktree {name}: {e}"))),
         };
-        // Match list_worktrees: a still-initializing worktree isn't countable
-        // yet, or the discovery poll's count check would disagree with its
-        // listing on every tick during a checkout.
-        if is_initializing(&repo, name, &wt) {
+        // Withhold it until the checkout lands: it appears on the next poll.
+        if is_initializing(repo, name, &wt) {
             continue;
         }
         let wt_path = wt.path().to_path_buf();
@@ -2057,6 +2031,7 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
             match wt_path.canonicalize() {
                 Ok(canonical) if canonical.starts_with(base) => {}
                 Ok(_) => continue,
+                // Path doesn't exist on disk: skip it.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(e) => {
                     return Err(AppError::Git(format!(
@@ -2066,9 +2041,9 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
                 }
             }
         }
-        count += 1;
+        found.push((name.to_string(), wt_path));
     }
-    Ok(count)
+    Ok(found)
 }
 
 /// Get detailed status for a single worktree path.
@@ -2113,16 +2088,27 @@ fn get_branch_for_path(path: &Path) -> Option<String> {
 /// genuinely undeterminable (e.g. a non-rebase detached checkout); `list_worktrees`
 /// then falls back to the worktree directory name rather than `"HEAD"`.
 fn resolve_worktree_branch(repo: &Repository) -> Option<String> {
-    if let Ok(head) = repo.head() {
-        if let Ok(name) = head.shorthand() {
-            // A branch literally named "HEAD" is forbidden by git, so this
-            // reliably means a detached HEAD rather than a real branch.
-            if name != "HEAD" {
-                return Some(name.to_string());
+    read_worktree_branch(repo).ok().flatten()
+}
+
+/// `resolve_worktree_branch` for a caller that must tell "no branch" from "HEAD
+/// could not be read". A missing or unborn HEAD is "no branch"; any other
+/// error is returned.
+fn read_worktree_branch(repo: &Repository) -> Result<Option<String>, git2::Error> {
+    match repo.head() {
+        Ok(head) => {
+            if let Ok(name) = head.shorthand() {
+                // A branch literally named "HEAD" is forbidden by git, so this
+                // reliably means a detached HEAD rather than a real branch.
+                if name != "HEAD" {
+                    return Ok(Some(name.to_string()));
+                }
             }
         }
+        Err(e) if matches!(e.code(), git2::ErrorCode::NotFound | git2::ErrorCode::UnbornBranch) => {}
+        Err(e) => return Err(e),
     }
-    rebase_head_name(repo)
+    Ok(rebase_head_name(repo))
 }
 
 /// The branch an in-progress rebase will return to, read from the worktree's
@@ -2149,8 +2135,7 @@ fn rebase_head_name(repo: &Repository) -> Option<String> {
 }
 
 /// Helper: get the epoch milliseconds of the latest commit on HEAD.
-fn get_last_commit_epoch(path: &Path) -> Option<i64> {
-    let repo = Repository::open(path).ok()?;
+fn last_commit_epoch(repo: &Repository) -> Option<i64> {
     let head = repo.head().ok()?;
     let commit = head.peel_to_commit().ok()?;
     let epoch_secs = commit.time().seconds();
