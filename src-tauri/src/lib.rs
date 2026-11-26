@@ -157,28 +157,88 @@ fn raise_open_file_limit() -> Option<(libc::rlim_t, libc::rlim_t)> {
     Some((old, old))
 }
 
-/// Log the open-file count against the limit every ten minutes, as a warning
-/// once it passes 80%. Nothing recorded it on 2026-11-26, so a slow leak could
-/// not be told apart from plain load (three descriptors per PTY session).
+/// Open descriptors of this process, split by kind.
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug, Default)]
+struct OpenFileKinds {
+    total: usize,
+    /// PTYs and devices.
+    character: usize,
+    socket: usize,
+    pipe: usize,
+    file: usize,
+    other: usize,
+}
+
+/// Count this process's descriptors by kind. Returns `None` when `/dev/fd`
+/// cannot be read.
+#[cfg(unix)]
+fn open_file_kinds() -> Option<OpenFileKinds> {
+    let mut kinds = OpenFileKinds::default();
+    for entry in std::fs::read_dir("/dev/fd").ok()? {
+        let Some(fd) = entry
+            .ok()
+            .and_then(|e| e.file_name().to_str().and_then(|n| n.parse::<libc::c_int>().ok()))
+        else {
+            kinds.other += 1;
+            continue;
+        };
+        let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: fstat only writes the struct we pass; a closed or foreign
+        // descriptor makes it fail, which counts as `other`.
+        let ok = unsafe { libc::fstat(fd, &mut st) } == 0;
+        match if ok { st.st_mode & libc::S_IFMT } else { 0 } {
+            libc::S_IFCHR => kinds.character += 1,
+            libc::S_IFSOCK => kinds.socket += 1,
+            libc::S_IFIFO => kinds.pipe += 1,
+            libc::S_IFREG => kinds.file += 1,
+            _ => kinds.other += 1,
+        }
+    }
+    // One descriptor is the directory listing itself (a directory, so `other`).
+    kinds.other = kinds.other.saturating_sub(1);
+    kinds.total = kinds.character + kinds.socket + kinds.pipe + kinds.file + kinds.other;
+    Some(kinds)
+}
+
+/// Sample the open-file count every 5 s and log the peak of the last ten
+/// minutes, with its breakdown by kind, as a warning once it passes 80% of the
+/// limit. A single point sample on 2026-11-26 read 89 while the real peak was
+/// 155 (packfiles, sockets and pipes on top of the PTY descriptors), so a
+/// burst needs a peak, not a snapshot.
 #[cfg(unix)]
 fn log_open_files_periodically(app: tauri::AppHandle) {
     use tauri::Manager;
-    std::thread::spawn(move || loop {
-        // `/dev/fd` lists this process's descriptors; one of them is the
-        // listing itself.
-        let open = std::fs::read_dir("/dev/fd").map(|d| d.count().saturating_sub(1)).ok();
-        let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-        // SAFETY: getrlimit only writes the struct we pass.
-        let limit = (unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) } == 0)
-            .then_some(lim.rlim_cur);
-        let sessions = app.state::<PtyManager>().list().map(|s| s.len()).ok();
-        match (open, limit) {
-            (Some(open), Some(limit)) if open as u64 * 5 >= limit * 4 => {
-                tracing::warn!(open, limit, ?sessions, "[open-files] close to the limit")
+    const SAMPLES_PER_LOG: u32 = 120;
+    std::thread::spawn(move || {
+        let mut peak: Option<OpenFileKinds> = None;
+        let mut samples: u32 = 0;
+        loop {
+            let current = open_file_kinds();
+            if let Some(now) = current {
+                if peak.is_none_or(|p| now.total > p.total) {
+                    peak = Some(now);
+                }
             }
-            _ => tracing::info!(?open, ?limit, ?sessions, "[open-files]"),
+            if samples.is_multiple_of(SAMPLES_PER_LOG) {
+                let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+                // SAFETY: getrlimit only writes the struct we pass.
+                let limit = (unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) } == 0)
+                    .then_some(lim.rlim_cur);
+                let sessions = app.state::<PtyManager>().list().map(|s| s.len()).ok();
+                let open = current.map(|k| k.total);
+                match (peak, limit) {
+                    (Some(p), Some(limit)) if p.total as u64 * 5 >= limit * 4 => tracing::warn!(
+                        ?open, peak = p.total, kinds = ?p, limit, ?sessions,
+                        "[open-files] close to the limit"
+                    ),
+                    _ => tracing::info!(?open, peak = peak.map(|p| p.total), kinds = ?peak, ?limit, ?sessions, "[open-files]"),
+                }
+                peak = None;
+            }
+            samples = samples.wrapping_add(1);
+            std::thread::sleep(std::time::Duration::from_secs(5));
         }
-        std::thread::sleep(std::time::Duration::from_secs(600));
     });
 }
 
@@ -681,5 +741,20 @@ mod updater_channel_guard_tests {
     fn beta_channel_accepts_both() {
         assert!(should_offer_version("0.16.0-beta.1", true));
         assert!(should_offer_version("0.16.0", true));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod open_file_kinds_tests {
+    use super::open_file_kinds;
+
+    #[test]
+    fn kinds_add_up_to_the_total() {
+        let kinds = open_file_kinds().expect("/dev/fd is readable");
+        assert!(kinds.total >= 3, "stdin, stdout and stderr are open");
+        assert_eq!(
+            kinds.total,
+            kinds.character + kinds.socket + kinds.pipe + kinds.file + kinds.other
+        );
     }
 }
