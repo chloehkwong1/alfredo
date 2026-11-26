@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { autostartIfMarked, computeDiscovery, computeRemovals } from "./useWorktreeDiscovery";
-import { takeAutostartMarker } from "../api";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { autostartIfMarked, computeDiscovery, computeRemovals, pollRepo } from "./useWorktreeDiscovery";
+import { listWorktrees, takeAutostartMarker } from "../api";
+import { lifecycleManager } from "../services/lifecycleManager";
 import { ensureAgentSession } from "../services/agentMessenger";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
@@ -10,6 +11,9 @@ import type { Worktree } from "../types";
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   takeAutostartMarker: vi.fn(),
+  listWorktrees: vi.fn(),
+  countWorktrees: vi.fn(),
+  adoptWorktree: vi.fn(),
 }));
 vi.mock("../services/agentMessenger", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/agentMessenger")>()),
@@ -232,5 +236,56 @@ describe("autostartIfMarked", () => {
 
     await autostartIfMarked("/repo", id, path);
     expect(ensureAgentSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("pollRepo", () => {
+  const id = "/repo::vanished";
+  const path = "/wt/vanished";
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    const wt: Worktree = {
+      id,
+      name: "vanished",
+      path,
+      branch: "test/vanished",
+      repoPath: "/repo",
+      prStatus: null,
+      agentStatus: "notRunning",
+      column: "inProgress",
+      isBranchMode: false,
+      additions: null,
+      deletions: null,
+    };
+    useWorkspaceStore.setState({
+      worktrees: [wt],
+      activeWorktreeId: null,
+      restoredRepos: new Set(["/repo"]),
+    });
+    vi.mocked(listWorktrees).mockReset().mockResolvedValue([]);
+  });
+
+  it("keeps a row the listing missed while its folder is still on disk", async () => {
+    const remove = vi
+      .spyOn(lifecycleManager, "removeWorktree")
+      .mockRejectedValue(new Error("folder still exists"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await pollRepo("/repo", new Map([["/repo", new Set([id])]]), true, () => false);
+
+    expect(remove).toHaveBeenCalledWith(id, "/repo", "vanished", { goneFrom: path });
+    expect(useWorkspaceStore.getState().worktrees.map((w) => w.id)).toEqual([id]);
+  });
+
+  it("drops a row whose folder is gone", async () => {
+    vi.spyOn(lifecycleManager, "removeWorktree").mockResolvedValue(undefined);
+
+    await pollRepo("/repo", new Map([["/repo", new Set([id])]]), true, () => false);
+
+    expect(useWorkspaceStore.getState().worktrees).toEqual([]);
   });
 });

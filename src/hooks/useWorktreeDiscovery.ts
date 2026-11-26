@@ -123,7 +123,8 @@ export async function autostartIfMarked(repo: string, id: string, path: string):
   }
 }
 
-async function pollRepo(
+// Exported for tests.
+export async function pollRepo(
   repo: string,
   knownIds: Map<string, Set<string>>,
   fullTick: boolean,
