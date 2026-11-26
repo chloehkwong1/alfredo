@@ -1427,6 +1427,17 @@ describe("detectedServers", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("recordStoppedServer drops a clean stop, keeps survivors and counts each stop", () => {
+    const store = useWorkspaceStore;
+    store.setState({ detectedServers: { a: [3000, 3001], b: [3007] } });
+    const before = store.getState().detectedServersStops;
+    store.getState().recordStoppedServer("a", []);
+    expect(store.getState().detectedServers).toEqual({ b: [3007] });
+    store.getState().recordStoppedServer("b", [3007, 3007]);
+    expect(store.getState().detectedServers).toEqual({ b: [3007] });
+    expect(store.getState().detectedServersStops).toBe(before + 2);
+  });
+
   it("setDetectedServers replaces changed content", () => {
     const store = useWorkspaceStore;
     store.getState().setDetectedServers({ a: [3011] });

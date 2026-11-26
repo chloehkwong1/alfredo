@@ -430,6 +430,10 @@ fn kill_targets(
     targets
 }
 
+/// A scan error with this text means the tool is missing (`lsof` on some Linux
+/// installs): the feature is off, so Stop has nothing it could have shown.
+const NOT_INSTALLED: &str = "is not installed";
+
 /// Run a command with a 2 s timeout. `lsof` exits 1 when it finds nothing or
 /// could not read some process (it still prints the rest), so `lenient` accepts
 /// exit 1; any other failed status is an error. The error is the reason only.
@@ -443,7 +447,10 @@ async fn run_capture(program: &str, args: &[&str], lenient: bool) -> Result<Stri
     )
     .await
     .map_err(|_| format!("{program} timed out"))?
-    .map_err(|e| format!("{program} did not start: {e}"))?;
+    .map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => format!("{program} {NOT_INSTALLED}"),
+        _ => format!("{program} did not start: {e}"),
+    })?;
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     if !(output.status.success() || lenient && output.status.code() == Some(1)) {
         return Err(format!("{program} exited {}", output.status));
@@ -523,6 +530,13 @@ fn log_once(seen: &AtomicBool, reason: &str) {
 /// empty list (logged once per app run): a poll must never fail loudly.
 async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
     static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
+    try_detect(worktree_paths).await.unwrap_or_else(|reason| {
+        log_once(&FAILURE_LOGGED, &reason);
+        Vec::new()
+    })
+}
+
+async fn try_detect(worktree_paths: &[String]) -> Result<Vec<DetectedServer>, String> {
     let mut originals: HashMap<String, Vec<&String>> = HashMap::new();
     for path in worktree_paths {
         if let Some(canonical) = canonical_dir(path) {
@@ -530,16 +544,10 @@ async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
         }
     }
     if originals.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let canon: Vec<String> = originals.keys().cloned().collect();
-    let scan = match scan().await {
-        Ok(scan) => scan,
-        Err(reason) => {
-            log_once(&FAILURE_LOGGED, &reason);
-            return Vec::new();
-        }
-    };
+    let scan = scan().await?;
     let mut servers: Vec<DetectedServer> =
         select_servers(&scan.listeners, &scan.cwds, &scan.protected, &canon)
             .into_iter()
@@ -556,7 +564,7 @@ async fn detect(worktree_paths: &[String]) -> Vec<DetectedServer> {
             })
             .collect();
     servers.sort_by(|a, b| a.worktree_path.cmp(&b.worktree_path));
-    servers
+    Ok(servers)
 }
 
 #[tauri::command]
@@ -589,13 +597,13 @@ fn signal(pids: &[u32], sig: i32) {
 
 /// Stop every non-protected server running for `worktree_path`: SIGTERM, up to
 /// 3 s of grace, then SIGKILL. Reports what was signalled and any port still
-/// listening afterwards. Nothing listening is success with nothing stopped.
+/// listening afterwards. Nothing listening is success with nothing stopped. A
+/// failed lookup is an error, so the caller never takes it for a clean stop.
 #[tauri::command]
 pub async fn stop_detected_servers(
     worktree_path: String,
     worktree_paths: Vec<String>,
 ) -> Result<StopDetectedResult, AppError> {
-    static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
     static REGISTRY_FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
     let nothing = StopDetectedResult {
         stopped: Vec::new(),
@@ -611,12 +619,19 @@ pub async fn stop_detected_servers(
         .collect();
     worktrees.push(worktree.clone());
 
+    let scan_failed = |reason: String| {
+        if reason.ends_with(NOT_INSTALLED) {
+            Ok(StopDetectedResult {
+                stopped: Vec::new(),
+                still_listening: Vec::new(),
+            })
+        } else {
+            Err(AppError::Io(std::io::Error::other(reason)))
+        }
+    };
     let mut scan = match scan().await {
         Ok(scan) => scan,
-        Err(reason) => {
-            log_once(&FAILURE_LOGGED, &reason);
-            return Ok(nothing);
-        }
+        Err(reason) => return scan_failed(reason),
     };
     let mut listener_pids = stop_listener_pids(
         &scan.listeners,
@@ -664,10 +679,7 @@ pub async fn stop_detected_servers(
     ancestors.retain(|pid| !scan.cwds.contains_key(pid));
     match lookup_cwds(ancestors).await {
         Ok(more) => scan.cwds.extend(more),
-        Err(reason) => {
-            log_once(&FAILURE_LOGGED, &reason);
-            return Ok(nothing);
-        }
+        Err(reason) => return scan_failed(reason),
     }
 
     let mut targets = BTreeSet::new();
@@ -694,12 +706,14 @@ pub async fn stop_detected_servers(
     signal(&survivors, libc::SIGKILL);
 
     // Over every known worktree, so a spared nested server is not blamed on the target.
-    let still_listening = detect(&worktrees)
-        .await
-        .into_iter()
-        .filter(|server| server.worktree_path == worktree)
-        .flat_map(|server| server.ports)
-        .collect();
+    let still_listening = match try_detect(&worktrees).await {
+        Ok(servers) => servers,
+        Err(reason) => return scan_failed(reason),
+    }
+    .into_iter()
+    .filter(|server| server.worktree_path == worktree)
+    .flat_map(|server| server.ports)
+    .collect();
     Ok(StopDetectedResult {
         stopped: targets,
         still_listening,

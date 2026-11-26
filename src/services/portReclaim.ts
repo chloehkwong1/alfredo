@@ -109,11 +109,8 @@ export async function stopServerAndReleasePort(
         stillListening,
         wt.id,
       );
-    } else {
-      const { detectedServers, setDetectedServers } = useWorkspaceStore.getState();
-      const { [wt.id]: _stopped, ...rest } = detectedServers;
-      setDetectedServers(rest);
     }
+    useWorkspaceStore.getState().recordStoppedServer(wt.id, stillListening);
   } catch (e) {
     stoppedCleanly = false;
     console.warn(`[${context}] Failed to stop detected servers:`, wt.id, e);

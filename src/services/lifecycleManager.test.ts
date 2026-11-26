@@ -11,7 +11,7 @@ const mockSetRunningServer = vi.fn();
 const mockGetSession = vi.fn(() => null as { sessionId: string } | null);
 const mockListSessions = vi.fn(() => Promise.resolve([] as unknown[]));
 const mockClosePty = vi.fn((..._args: unknown[]) => Promise.resolve());
-const mockSetDetectedServers = vi.fn();
+const mockRecordStoppedServer = vi.fn();
 const mockStopDetectedServers = vi.fn((..._args: unknown[]) =>
   Promise.resolve({ stopped: [] as number[], stillListening: [] as number[] }),
 );
@@ -113,7 +113,7 @@ beforeEach(() => {
     setRunningServer: mockSetRunningServer,
     worktrees: [],
     detectedServers: {},
-    setDetectedServers: mockSetDetectedServers,
+    recordStoppedServer: mockRecordStoppedServer,
   };
   layoutStoreState = {
     layout: {},
@@ -950,17 +950,17 @@ describe("stopServerAndReleasePort", () => {
       "/wt/feature-1",
       "/wt/other",
     ]);
-    expect(mockSetDetectedServers).toHaveBeenCalledWith({ other: [4000] });
+    expect(mockRecordStoppedServer).toHaveBeenCalledWith(wt.id, []);
     expect(mockReleaseWorktreePort).toHaveBeenCalled();
   });
 
-  it("keeps the assignment and the detected entry when a detected server survives", async () => {
+  it("keeps the assignment and records the survivor when a detected server survives", async () => {
     workspaceStoreState.detectedServers = { [wt.id]: [3021] };
     mockStopDetectedServers.mockResolvedValue({ stopped: [], stillListening: [3021] });
 
     await stopServerAndReleasePort(wt, "test");
 
-    expect(mockSetDetectedServers).not.toHaveBeenCalled();
+    expect(mockRecordStoppedServer).toHaveBeenCalledWith(wt.id, [3021]);
     expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
   });
 

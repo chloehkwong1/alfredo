@@ -106,6 +106,8 @@ interface WorkspaceState {
   runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
   /** Dev servers found listening in a worktree, whoever started them. Keyed by worktreeId, ports ascending; worktrees with none are absent. */
   detectedServers: Record<string, number[]>;
+  /** Counts stops, so a detection poll that was in flight during one discards its stale result. */
+  detectedServersStops: number;
   /** Repo paths where GitHub auth has failed (token missing/expired). */
   githubAuthErrors: Set<string>;
   setGithubAuthError: (repoPath: string) => void;
@@ -177,6 +179,8 @@ interface WorkspaceState {
   setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number; createdAt?: number } | null) => void;
   /** No-op (same state object) when `next` equals the current map by content. */
   setDetectedServers: (next: Record<string, number[]>) => void;
+  /** After a stop: keep only the ports still listening (survivors keep the Stop button). */
+  recordStoppedServer: (worktreeId: string, stillListening: number[]) => void;
 }
 
 /** Port to show for a worktree: the server tab's own, else the lowest detected one. */
@@ -490,6 +494,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   deleteAfterDays: 0,
   runningServers: {},
   detectedServers: {},
+  detectedServersStops: 0,
   githubAuthErrors: new Set<string>(),
   setGithubAuthError: (repoPath) =>
     set((state) => ({
@@ -1128,4 +1133,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setDetectedServers: (next) => set((state) =>
     sameDetectedServers(state.detectedServers, next) ? state : { detectedServers: next },
   ),
+
+  recordStoppedServer: (worktreeId, stillListening) => set((state) => {
+    const { [worktreeId]: _stopped, ...rest } = state.detectedServers;
+    const ports = [...new Set(stillListening)].sort((a, b) => a - b);
+    return {
+      detectedServers: ports.length > 0 ? { ...rest, [worktreeId]: ports } : rest,
+      detectedServersStops: state.detectedServersStops + 1,
+    };
+  }),
 }));

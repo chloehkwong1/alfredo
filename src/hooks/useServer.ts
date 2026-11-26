@@ -268,9 +268,10 @@ export function useDetectedServers() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const worktrees = useWorkspaceStore.getState().worktrees;
+        const { worktrees, detectedServersStops } = useWorkspaceStore.getState();
         const detected = await detectDevServers(worktrees.map((wt) => wt.path));
-        if (cancelled) return;
+        // A stop during this scan already recorded what it left running.
+        if (cancelled || useWorkspaceStore.getState().detectedServersStops !== detectedServersStops) return;
         const idByPath = new Map(worktrees.map((wt) => [wt.path, wt.id]));
         const next: Record<string, number[]> = {};
         for (const { worktreePath, ports } of detected) {
@@ -357,12 +358,12 @@ export function useServer(activeWorktreeId: string | null) {
         const { stillListening } = await stopDetectedServers(
           wt.path,
           worktrees.map((w) => w.path),
-        );
-        const ports = [...new Set(stillListening)].sort((a, b) => a - b);
-        const { detectedServers, setDetectedServers } = useWorkspaceStore.getState();
-        const { [activeWorktreeId]: _stopped, ...rest } = detectedServers;
-        // Survivors stay recorded so the button keeps offering Stop.
-        setDetectedServers(ports.length > 0 ? { ...rest, [activeWorktreeId]: ports } : rest);
+        ).catch((e) => {
+          useToastStore.getState().show({ message: "Couldn't check that the server stopped" });
+          throw e;
+        });
+        useWorkspaceStore.getState().recordStoppedServer(activeWorktreeId, stillListening);
+        const ports = useWorkspaceStore.getState().detectedServers[activeWorktreeId] ?? [];
         if (ports.length > 0) {
           useToastStore.getState().show({
             message: `Couldn't stop the server on :${ports.join(", :")}`,
