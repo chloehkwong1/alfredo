@@ -1,0 +1,45 @@
+src/hooks/useWorktreeDiscovery.ts
+  s_8aff2079d24fda::t_35013317f0f992 175-176
+  s_8aff2079d24fda::t_f0519d9f8a8a33 188-198
+  s_8aff2079d24fda::t_614aae91b0048e 61,63-65
+src-tauri/src/git_manager.rs
+  s_8aff2079d24fda::t_c95c2ef10a1528 2042-2046,2048,2059-2066
+  s_8aff2079d24fda::t_ab474402f3ce75 334-362
+  s_8aff2079d24fda::t_61de727ab800fb 1953,2047
+  s_8aff2079d24fda::t_0983635bf19565 3510-3522,3524-3525,3532-3535,3537-3555,3557-3563,3565,3567-3570
+  s_8aff2079d24fda::t_05e22bcf663f57 1946-1949,1952,1965-1967,1969-1975,1979-1991
+  s_8aff2079d24fda::t_bb555b0206acaa 3523,3556,3564,3566
+  s_8aff2079d24fda::t_f42a5804ce76b0 3526-3531,3536
+src-tauri/src/lib.rs
+  s_8aff2079d24fda::t_4780dc53b3a4f4 131-137,139-153,155-156
+  s_8aff2079d24fda::t_0f230af5b85022 202-206
+  s_8aff2079d24fda::t_c5e0f90ad458d8 138,154
+src-tauri/src/commands/worktree.rs
+  s_8aff2079d24fda::t_cbf5d9fa0bb34e 493-498,506,508-510
+  s_8aff2079d24fda::t_f854f4d2e96b7e 562-564
+src/api.ts
+  s_8aff2079d24fda::t_193690ce54d0fc 121-123,128,130
+src/services/lifecycleManager.ts
+  s_8aff2079d24fda::t_6f597491b4d934 107-114
+  s_8aff2079d24fda::t_48d72629da9cc2 66,74-79
+  s_8aff2079d24fda::t_b54d2bde793b84 80
+src/services/lifecycleManager.test.ts
+  s_8aff2079d24fda::t_007a911567c4de 374-409
+  s_8aff2079d24fda::t_3490e3f7f66518 410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "84df76890acb45cf74d290f3c00fe5a9ec929cdd",
+  "prompts": {},
+  "sessions": {
+    "s_8aff2079d24fda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0d50f41-b914-418b-a4ae-4310d3896a73",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
