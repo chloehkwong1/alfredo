@@ -34,6 +34,7 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState<WorktreeDirtyState | null>(null);
+  const [checkFailed, setCheckFailed] = useState(false);
 
   // Deleting a mid-stack worktree reconnects the chain (children move onto
   // this worktree's own parent, keeping its commits) — state the consequence
@@ -60,13 +61,22 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   useEffect(() => {
     if (!open || !worktreePath) {
       setDirty(null);
+      setCheckFailed(false);
       return;
     }
     let cancelled = false;
     setDirty(null);
+    setCheckFailed(false);
     worktreeDirtyState(worktreePath, repoPath)
       .then((d) => { if (!cancelled) setDirty(d); })
-      .catch(() => { if (!cancelled) setDirty({ untracked: [], uncommitted: [], ignored: [] }); });
+      .catch(() => {
+        // Keep the empty state so `loading` ends, but remember the check failed:
+        // an empty result from a failed check must not read as "clean".
+        if (!cancelled) {
+          setDirty({ untracked: [], uncommitted: [], ignored: [] });
+          setCheckFailed(true);
+        }
+      });
     return () => { cancelled = true; };
   }, [open, worktreePath, repoPath]);
 
@@ -86,7 +96,7 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   // work, so an accidental Enter can't blow away unseen files. Ignored files
   // count here too: a worktree whose only content is a gitignored mockup is
   // exactly the case where Enter-to-delete loses the work.
-  const settledClean = dirty !== null && !hasUnsaved && !hasIgnored;
+  const settledClean = dirty !== null && !checkFailed && !hasUnsaved && !hasIgnored;
   const focusTarget = settledClean ? confirmRef : cancelRef;
 
   useEffect(() => {
@@ -162,6 +172,15 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
           </div>
         )}
 
+        {checkFailed && (
+          <div className="rounded-md border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-xs">
+            <p className="font-medium text-amber-400">Could not check for unsaved files</p>
+            <p className="mt-1 text-text-secondary">
+              Files that exist only in this worktree may be deleted without a warning.
+            </p>
+          </div>
+        )}
+
         {hasIgnored && (
           <div className="rounded-md border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-xs">
             <p className="font-medium text-amber-400">
@@ -196,7 +215,7 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
               setTimeout(onConfirm, 200);
             }}
           >
-            {loading ? "Checking…" : hasUnsaved ? "Delete anyway" : "Delete"}
+            {loading ? "Checking…" : hasUnsaved || checkFailed ? "Delete anyway" : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>

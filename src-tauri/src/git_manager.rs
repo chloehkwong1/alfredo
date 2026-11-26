@@ -1490,22 +1490,34 @@ async fn is_recoverable_from_root(
 }
 
 /// Classify a worktree's working tree into untracked, tracked-uncommitted and
-/// gitignored paths via `git status --porcelain --ignored`. Returns an empty
-/// state (rather than erroring) when the path isn't a git worktree, so the
-/// delete confirm degrades to its plain form instead of blocking deletion.
+/// gitignored paths via `git status --porcelain --ignored`.
+///
+/// Fails closed: a folder that is gone holds nothing and returns an empty
+/// state, but a folder that exists and that git cannot report on (spawn
+/// failure, e.g. out of file descriptors, or a non-zero exit) returns `Err`.
+/// A failed check must not read as "clean" — the delete dialogs warn and
+/// auto-delete skips the worktree.
 /// `repo_path` (the main checkout) enables the recoverable-copy filter above.
 pub async fn worktree_dirty_state(
     worktree_path: &str,
     repo_path: Option<&str>,
 ) -> Result<WorktreeDirtyState, AppError> {
+    match Path::new(worktree_path).try_exists() {
+        Ok(false) => return Ok(WorktreeDirtyState::default()),
+        Ok(true) => {}
+        Err(e) => {
+            return Err(AppError::Git(format!(
+                "could not check whether {worktree_path} exists: {e}"
+            )))
+        }
+    }
+
     // `core.quotepath=false` keeps non-ASCII filenames readable (git otherwise
-    // C-escapes them). A missing/unreadable worktree dir makes the spawn or the
-    // command fail — treat either as "nothing to warn about" so the delete
-    // confirm still works (honouring the empty-state contract above).
+    // C-escapes them).
     //
     // `--ignored` (directory-collapsed, not `=matching`) keeps the list short:
     // one `node_modules/` entry instead of 40k files.
-    let output = match git_command()
+    let output = git_command()
         .args([
             "-c",
             "core.quotepath=false",
@@ -1516,10 +1528,13 @@ pub async fn worktree_dirty_state(
         .current_dir(worktree_path)
         .output()
         .await
-    {
-        Ok(o) if o.status.success() => o,
-        _ => return Ok(WorktreeDirtyState::default()),
-    };
+        .map_err(|e| AppError::Git(format!("could not run git status in {worktree_path}: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "git status failed in {worktree_path}: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
 
     let mut state = WorktreeDirtyState::default();
     for line in String::from_utf8_lossy(&output.stdout).lines() {
@@ -3387,6 +3402,26 @@ mod tests {
         assert!(state.untracked.is_empty() && state.uncommitted.is_empty());
     }
 
+    /// A folder that is gone holds nothing, so it reads as an empty state.
+    #[tokio::test]
+    async fn worktree_dirty_state_missing_folder_is_empty() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let gone = dir.path().join("not-there");
+
+        let state = worktree_dirty_state(gone.to_str().unwrap(), None)
+            .await
+            .expect("a missing folder is an empty state");
+        assert!(state.untracked.is_empty() && state.uncommitted.is_empty() && state.ignored.is_empty());
+    }
+
+    /// A folder that exists but git cannot report on must not read as clean.
+    #[tokio::test]
+    async fn worktree_dirty_state_fails_for_a_folder_git_cannot_read() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let result = worktree_dirty_state(dir.path().to_str().unwrap(), None).await;
+        assert!(result.is_err(), "a folder git cannot read must be an error, not a clean state");
+    }
 
     /// Behind base + uncommitted tracked edit: badge should report only the uncommitted scope,
     /// confirming the two diff sources don't interact and the "behind" portion stays zeroed

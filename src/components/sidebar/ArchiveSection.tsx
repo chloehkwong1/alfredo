@@ -97,7 +97,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
   // "Delete all" force-removes every archived worktree, so it needs the same
   // untracked-work guard as the single-delete confirm. Fetch each worktree's
   // dirty state when the dialog opens and surface which ones hold unseen work.
-  const [dirtyAll, setDirtyAll] = useState<{ branch: string; count: number }[] | null>(null);
+  const [dirtyAll, setDirtyAll] = useState<{ branch: string; count: number | null }[] | null>(null);
   useEffect(() => {
     if (!deleteAllDialogOpen) {
       setDirtyAll(null);
@@ -115,16 +115,20 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
             const count = d.untracked.length + d.uncommitted.length + d.ignored.length;
             return count > 0 ? { branch: wt.branch, count } : null;
           } catch {
-            return null;
+            // A failed check is not "clean": surface it as "could not check".
+            return { branch: wt.branch, count: null };
           }
         }),
     ).then((rows) => {
       if (!cancelled) {
-        setDirtyAll(rows.filter((r): r is { branch: string; count: number } => r !== null));
+        setDirtyAll(rows.filter((r): r is { branch: string; count: number | null } => r !== null));
       }
     });
     return () => { cancelled = true; };
   }, [deleteAllDialogOpen, worktrees]);
+
+  const uncheckedCount = dirtyAll?.filter((r) => r.count === null).length ?? 0;
+  const dirtyWithCount = (dirtyAll?.length ?? 0) - uncheckedCount;
 
   const isEmpty = worktrees.length === 0;
   const hasRules = archiveAfterDays > 0 || deleteAfterDays > 0;
@@ -322,15 +326,24 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
           </ul>
           {dirtyAll && dirtyAll.length > 0 && (
             <div className="mb-3 rounded-md border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-xs">
-              <p className="font-medium text-red-400">
-                {dirtyAll.length} of these {dirtyAll.length === 1 ? "worktrees has" : "worktrees have"} unsaved work that will be permanently deleted
-              </p>
-              <p className="mt-1 text-text-secondary">
-                Untracked files (e.g. /research output) don't show in the changes badge:
-              </p>
+              {dirtyWithCount > 0 && (
+                <p className="font-medium text-red-400">
+                  {dirtyWithCount} of these {dirtyWithCount === 1 ? "worktrees has" : "worktrees have"} unsaved work that will be permanently deleted
+                </p>
+              )}
+              {uncheckedCount > 0 && (
+                <p className="mt-1 text-text-secondary">
+                  Could not check {uncheckedCount} of these for unsaved files.
+                </p>
+              )}
+              {dirtyWithCount > 0 && (
+                <p className="mt-1 text-text-secondary">
+                  Untracked files (e.g. /research output) don't show in the changes badge:
+                </p>
+              )}
               <ul className="mt-1.5 space-y-0.5 font-mono text-text-secondary">
                 {dirtyAll.slice(0, 6).map((r) => (
-                  <li key={r.branch} className="truncate">{r.branch} — {r.count} file{r.count === 1 ? "" : "s"}</li>
+                  <li key={r.branch} className="truncate">{r.count === null ? `${r.branch} — could not check` : `${r.branch} — ${r.count} file${r.count === 1 ? "" : "s"}`}</li>
                 ))}
                 {dirtyAll.length > 6 && (
                   <li className="text-text-tertiary">…and {dirtyAll.length - 6} more</li>
