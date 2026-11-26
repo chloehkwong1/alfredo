@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldAutoArchive } from "./autoArchive";
+import { autoDeleteBlocker, shouldAutoArchive } from "./autoArchive";
 import type { Worktree } from "../types";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -84,5 +84,29 @@ describe("shouldAutoArchive", () => {
     });
 
     expect(shouldAutoArchive(wt, opts)).toBe(false);
+  });
+});
+
+describe("autoDeleteBlocker", () => {
+  const clean = { untracked: [], uncommitted: [], ignored: [] };
+
+  it("allows a clean worktree", () => {
+    expect(autoDeleteBlocker(clean)).toBeNull();
+  });
+
+  it("allows a worktree that only holds ignored files", () => {
+    expect(autoDeleteBlocker({ ...clean, ignored: [".env.neon"] })).toBeNull();
+  });
+
+  it("blocks on untracked files", () => {
+    expect(autoDeleteBlocker({ ...clean, untracked: ["notes.md"] })).toBe("unsavedWork");
+  });
+
+  it("blocks on uncommitted changes", () => {
+    expect(autoDeleteBlocker({ ...clean, uncommitted: ["src/a.ts"] })).toBe("unsavedWork");
+  });
+
+  it("blocks when the check failed", () => {
+    expect(autoDeleteBlocker("checkFailed")).toBe("checkFailed");
   });
 });

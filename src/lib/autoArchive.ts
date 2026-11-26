@@ -1,3 +1,4 @@
+import type { WorktreeDirtyState } from "../api";
 import type { Worktree } from "../types";
 
 /**
@@ -27,4 +28,13 @@ export function shouldAutoArchive(
     ? new Date(wt.prStatus.mergedAt).getTime()
     : wt.lastActivityAt;
   return refTime != null && now - refTime >= archiveAfterMs;
+}
+
+/** Why auto-delete must leave an archived worktree alone, or null when it may
+ *  delete it. Ignored files never block: every worktree has some. */
+export function autoDeleteBlocker(
+  check: WorktreeDirtyState | "checkFailed",
+): "checkFailed" | "unsavedWork" | null {
+  if (check === "checkFailed") return "checkFailed";
+  return check.untracked.length + check.uncommitted.length > 0 ? "unsavedWork" : null;
 }

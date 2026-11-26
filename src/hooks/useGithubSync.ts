@@ -6,9 +6,9 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAppConfigStore } from "../stores/appConfigStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
-import { getPrFiles, getWorktreeDiffStats, setSyncRepoPaths, runArchiveScript } from "../api";
+import { debugLog, getPrFiles, getWorktreeDiffStats, setSyncRepoPaths, runArchiveScript, worktreeDirtyState } from "../api";
 import { stopServerAndReleasePort } from "../services/portReclaim";
-import { shouldAutoArchive } from "../lib/autoArchive";
+import { autoDeleteBlocker, shouldAutoArchive } from "../lib/autoArchive";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { resolveStackConflict } from "../services/stackConflictHandoff";
 import { persistAssociationsFromPatches, reconcileStalePrs } from "../services/prAssociation";
@@ -19,6 +19,12 @@ import { persistAssociationsFromPatches, reconcileStalePrs } from "../services/p
  *  conflict on the same branch) replace the bar instead of stacking identical
  *  ones up. Repo-qualified: worktree names collide across repos. */
 const conflictToastIds = new Map<string, string>();
+
+/** Worktree id → time of the last auto-delete check that kept it, so a kept
+ *  worktree is rechecked at most once per AUTO_DELETE_RECHECK_MS, not on every
+ *  GitHub sync. */
+const autoDeleteKeptAt = new Map<string, number>();
+const AUTO_DELETE_RECHECK_MS = 60 * 60 * 1000;
 
 function conflictToastKey(repoPath: string, worktreeName: string): string {
   return `${repoPath}::${worktreeName}`;
@@ -144,6 +150,36 @@ export function useGithubSync() {
           );
 
         for (const wt of toDelete) {
+          const keptAt = autoDeleteKeptAt.get(wt.id);
+          if (keptAt !== undefined && now - keptAt < AUTO_DELETE_RECHECK_MS) continue;
+
+          // A failed check is not a "no": keep the worktree unless git
+          // positively reports nothing to lose.
+          let check: Awaited<ReturnType<typeof worktreeDirtyState>> | "checkFailed" = "checkFailed";
+          let failure = "no worktree path";
+          if (wt.path) {
+            try {
+              check = await worktreeDirtyState(wt.path, wt.repoPath);
+            } catch (e) {
+              failure = String(e);
+            }
+          }
+          const blocker = autoDeleteBlocker(check);
+          if (blocker) {
+            autoDeleteKeptAt.set(wt.id, now);
+            const detail =
+              check === "checkFailed"
+                ? failure
+                : `${check.untracked.length + check.uncommitted.length} files`;
+            debugLog(`[auto-delete] kept ${wt.id}: ${blocker} (${detail})`).catch(() => {});
+            continue;
+          }
+          autoDeleteKeptAt.delete(wt.id);
+          // `toDelete` is a snapshot from before the awaits above (and before
+          // earlier deletes in this loop, each of which takes seconds). A
+          // worktree the user unarchived meanwhile must not be deleted.
+          const live = useWorkspaceStore.getState().worktrees.find((w) => w.id === wt.id);
+          if (!live?.archived) continue;
           await lifecycleManager.removeWorktree(wt.id, wt.repoPath, wt.name).catch((e) => console.warn('[github-sync] Failed to remove worktree:', wt.name, e));
         }
       }
